@@ -878,7 +878,7 @@ export default function Profile({ navigate }) {
             </div>
           </div>
 
-          {/* ━━ 3. 快捷功能 2×2 宫格 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+          {/* ━━ 3. 快捷功能 2×2 宫格（黑底白字） ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
           <div style={{
             display: 'grid', gridTemplateColumns: '1fr 1fr',
             gap: 10, margin: '0 16px 12px',
@@ -886,14 +886,14 @@ export default function Profile({ navigate }) {
             {[
               {
                 icon: '📋',
-                iconBg: 'rgba(75,156,70,0.12)',
+                iconBg: 'rgba(255,255,255,0.12)',
                 label: '抓宠记录',
                 desc: '查看历史出货',
                 action: () => setSubPage('history'),
               },
               {
                 icon: null,
-                iconBg: 'rgba(200,131,10,0.12)',
+                iconBg: 'rgba(255,255,255,0.12)',
                 iconImg: `${import.meta.env.BASE_URL}fruit-icon.png`,
                 label: '果实攻略',
                 desc: '果实获取位置',
@@ -901,17 +901,17 @@ export default function Profile({ navigate }) {
               },
               {
                 icon: '🌰',
-                iconBg: 'rgba(156,111,224,0.12)',
+                iconBg: 'rgba(255,255,255,0.12)',
                 label: '特殊形态',
                 desc: '特殊形态精灵',
                 action: () => navigate('specialForms'),
               },
               {
-                icon: '✨',
-                iconBg: 'rgba(200,160,32,0.12)',
-                label: '图鉴收藏',
-                desc: '我的异色图鉴',
-                action: () => navigate('collection'),
+                icon: '🧪',
+                iconBg: 'rgba(255,255,255,0.12)',
+                label: '自定义方案',
+                desc: '我的方案 & 数据',
+                action: () => navigate('myCustomPlans'),
               },
             ].map((item, i) => (
               <button
@@ -920,10 +920,10 @@ export default function Profile({ navigate }) {
                 style={{
                   display: 'flex', flexDirection: 'row', alignItems: 'center',
                   gap: 10, padding: '12px 14px',
-                  border: '1.5px solid var(--card-border)',
+                  border: 'none',
                   borderRadius: 'var(--radius)',
-                  background: 'var(--card)',
-                  boxShadow: 'var(--shadow-card)',
+                  background: '#2B2A2E',
+                  boxShadow: '0 2px 0 #111014',
                   cursor: 'pointer', textAlign: 'left',
                   fontFamily: 'var(--font-body)',
                 }}
@@ -942,10 +942,10 @@ export default function Profile({ navigate }) {
                 </div>
                 {/* 文字 */}
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 900, color: '#2B2A2E', fontFamily: 'var(--font-display)', marginBottom: 2, whiteSpace: 'nowrap' }}>
+                  <div style={{ fontSize: 13, fontWeight: 900, color: '#FFFFFF', fontFamily: 'var(--font-display)', marginBottom: 2, whiteSpace: 'nowrap' }}>
                     {item.label}
                   </div>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)', lineHeight: 1.4 }}>
                     {item.desc}
                   </div>
                 </div>

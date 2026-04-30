@@ -14,6 +14,7 @@ import ManualShinyPage from './pages/ManualShinyPage';
 import FruitGuide from './pages/FruitGuide';
 import SpecialForms from './pages/SpecialForms';
 import CustomChecklist from './pages/CustomChecklist';
+import MyCustomPlans from './pages/MyCustomPlans';
 import SilhouettePattern from './components/SilhouettePattern';
 import './App.css';
 
@@ -130,6 +131,8 @@ function AppInner() {
         return <SpecialForms goBack={goBack} />;
       case 'customChecklist':
         return <CustomChecklist navigate={navigate} goBack={goBack} />;
+      case 'myCustomPlans':
+        return <MyCustomPlans goBack={goBack} />;
       default:
         return <Home navigate={navigate} />;
     }

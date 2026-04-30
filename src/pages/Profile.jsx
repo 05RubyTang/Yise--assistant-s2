@@ -695,7 +695,7 @@ export default function Profile({ navigate }) {
               {/* 头像 */}
               <AvatarUploader avatarUrl={avatarUrl} onFileChange={handleFileChange} />
 
-              {/* 昵称 + 同步状态 */}
+              {/* 昵称 + 同步状态 + 邮箱入口（同行小文字） */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 {editingName ? (
                   <div className="username-edit-row">
@@ -733,37 +733,39 @@ export default function Profile({ navigate }) {
                       onClick={() => { setNameInput(username); setEditingName(true); }}>✎</button>
                   </div>
                 )}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
-                  <span style={{
-                    width: 7, height: 7, borderRadius: '50%',
-                    background: syncColor, flexShrink: 0,
-                    boxShadow: syncStatus === 'ready' ? '0 0 0 2px rgba(76,175,80,0.2)' : 'none',
-                  }} />
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>{syncLabel}</span>
+                {/* 状态行：同步点 + 邮箱小入口并排 */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5, flexWrap: 'wrap' }}>
+                  {/* 同步状态 */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{
+                      width: 7, height: 7, borderRadius: '50%',
+                      background: syncColor, flexShrink: 0,
+                      boxShadow: syncStatus === 'ready' ? '0 0 0 2px rgba(76,175,80,0.2)' : 'none',
+                    }} />
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>{syncLabel}</span>
+                  </div>
+                  {/* 竖分隔 */}
+                  <span style={{ width: 1, height: 10, background: 'var(--divider)', display: 'inline-block' }} />
+                  {/* 邮箱小入口 */}
+                  <button
+                    onClick={() => setEmailExpanded(v => !v)}
+                    style={{
+                      background: 'none', border: 'none', padding: 0,
+                      cursor: 'pointer', fontFamily: 'var(--font-body)',
+                      display: 'flex', alignItems: 'center', gap: 3,
+                    }}
+                  >
+                    <span style={{ fontSize: 11 }}>{isBound ? '✅' : '📧'}</span>
+                    <span style={{
+                      fontSize: 11, fontWeight: 700,
+                      color: isBound ? 'var(--success)' : 'var(--cta)',
+                      textDecoration: emailExpanded ? 'underline' : 'none',
+                    }}>
+                      {isBound ? '邮箱已绑定' : '绑定邮箱'}
+                    </span>
+                  </button>
                 </div>
               </div>
-
-              {/* 邮箱入口（右侧常驻，点击展开） */}
-              <button
-                onClick={() => setEmailExpanded(v => !v)}
-                style={{
-                  flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6,
-                  background: emailExpanded ? 'rgba(200,131,10,0.08)' : 'var(--card-inner)',
-                  border: `1px solid ${emailExpanded ? 'rgba(200,131,10,0.3)' : 'var(--divider)'}`,
-                  borderRadius: 10, padding: '7px 10px',
-                  cursor: 'pointer', fontFamily: 'var(--font-body)', textAlign: 'left',
-                }}
-              >
-                <span style={{ fontSize: 16, lineHeight: 1 }}>{isBound ? '✅' : '📧'}</span>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: isBound ? 'var(--success)' : '#2B2A2E', whiteSpace: 'nowrap' }}>
-                    {isBound ? '邮箱已绑定' : '绑定邮箱'}
-                  </div>
-                  <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 1, whiteSpace: 'nowrap' }}>
-                    {isBound ? '已云端备份' : '数据云端备份，跨设备恢复'}
-                  </div>
-                </div>
-              </button>
             </div>
 
             {/* ── 展开的邮箱操作区 ── */}

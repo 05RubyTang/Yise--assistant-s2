@@ -896,42 +896,63 @@ export default function Profile({ navigate }) {
             </div>
           </div>
 
-          {/* ━━ 3. 快捷功能 2×2 宫格（白底黑字） ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+          {/* ━━ 3. 快捷功能 2×2 宫格 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
           <div style={{
             display: 'grid', gridTemplateColumns: '1fr 1fr',
             gap: 10, margin: '0 16px 12px',
           }}>
             {[
-              { label: '抓宠记录', desc: '查看历史出货', action: () => setSubPage('history') },
-              { label: '果实攻略', desc: '果实获取位置', action: () => navigate('fruitGuide') },
-              { label: '特殊形态', desc: '特殊形态精灵', action: () => navigate('specialForms') },
-              { label: '自定义方案', desc: '我的方案 & 数据', action: () => navigate('myCustomPlans') },
+              { label: '抓宠记录', cardImg: 'card-history.png', action: () => setSubPage('history') },
+              { label: '果实攻略', cardImg: 'card-fruit.png',   action: () => navigate('fruitGuide') },
+              { label: '特殊形态', cardImg: 'card-special.png', action: () => navigate('specialForms') },
+              { label: '自定义方案', cardImg: 'card-plan.png',  action: () => navigate('myCustomPlans') },
             ].map((item, i) => (
               <button
                 key={i}
                 onClick={item.action}
                 style={{
+                  position: 'relative',
                   display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
-                  gap: 4, padding: '12px 14px',
-                  border: '1.5px solid var(--card-border)',
-                  borderRadius: 'var(--radius)',
+                  justifyContent: 'flex-end',
+                  gap: 6, padding: '12px 14px 12px',
+                  height: 100,
+                  border: '2px solid #2B2A2E',
+                  borderRadius: 16,
                   background: '#ffffff',
-                  boxShadow: 'var(--shadow-card)',
+                  boxShadow: '0 3px 0 #2B2A2E',
                   cursor: 'pointer', textAlign: 'left',
                   fontFamily: 'var(--font-body)',
+                  overflow: 'hidden',
                 }}
               >
-                <div style={{ fontSize: 16, fontWeight: 900, color: '#2B2A2E', fontFamily: 'var(--font-display)', whiteSpace: 'nowrap' }}>
-                  {item.label}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                    {item.desc}
-                  </span>
+                {/* 黄色圆形装饰 */}
+                <div style={{
+                  position: 'absolute', right: -18, bottom: -18,
+                  width: 100, height: 100, borderRadius: '50%',
+                  background: '#F5C842',
+                  zIndex: 0,
+                }} />
+                {/* 插图 */}
+                <img
+                  src={`${import.meta.env.BASE_URL}${item.cardImg}`}
+                  alt=""
+                  style={{
+                    position: 'absolute', right: -4, bottom: -4,
+                    height: 90, width: 'auto',
+                    objectFit: 'contain',
+                    zIndex: 1,
+                    pointerEvents: 'none',
+                  }}
+                />
+                {/* 文字区（左侧，在图层之上） */}
+                <div style={{ position: 'relative', zIndex: 2 }}>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: '#2B2A2E', fontFamily: 'var(--font-display)', whiteSpace: 'nowrap', marginBottom: 6 }}>
+                    {item.label}
+                  </div>
                   <img
                     src={`${import.meta.env.BASE_URL}next-icon.png`}
                     alt=""
-                    style={{ width: 16, height: 'auto', flexShrink: 0 }}
+                    style={{ width: 28, height: 'auto' }}
                   />
                 </div>
               </button>

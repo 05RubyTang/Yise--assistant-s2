@@ -678,14 +678,15 @@ export default function Profile({ navigate }) {
             margin: '0 16px 12px', padding: 0,
             overflow: 'hidden', position: 'relative',
           }}>
-            {/* 迪莫剪影装饰 */}
+            {/* 我的页背景图 */}
             <img
-              src={`${import.meta.env.BASE_URL}dimo-bg.png`}
+              src={`${import.meta.env.BASE_URL}profile-bg.png`}
               alt="" aria-hidden="true"
               style={{
-                position: 'absolute', right: 14, top: 14,
-                width: 72, height: 72,
-                objectFit: 'contain', opacity: 0.10,
+                position: 'absolute', inset: 0,
+                width: '100%', height: '100%',
+                objectFit: 'cover', objectPosition: 'center top',
+                opacity: 0.18,
                 pointerEvents: 'none', userSelect: 'none',
               }}
             />

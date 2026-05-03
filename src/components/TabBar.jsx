@@ -3,7 +3,7 @@ const TABS = [
   { id: 'home',       img: `${base}tab-home.png`,       label: '首页' },
   { id: 'plans',      img: `${base}tab-plans.png`,      label: '方案' },
   { id: 'collection', img: `${base}tab-collection.png`, label: '图鉴' },
-  { id: 'profile',    img: `${base}tab-history.png`,    label: '我的' },
+  { id: 'profile',    img: `${base}tab-profile.png`,    label: '我的' },
 ];
 
 export default function TabBar({ current, onChange }) {

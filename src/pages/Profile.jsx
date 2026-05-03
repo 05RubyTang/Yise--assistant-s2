@@ -685,7 +685,18 @@ export default function Profile({ navigate }) {
 
       {/* ══ 主页：我的 ══════════════════════════════════════════════════════════ */}
       {subPage === null && (
-        <div style={{ paddingTop: 160 }}>
+        <div style={{ paddingTop: 72, position: 'relative' }}>
+          {/* dimo戴眼罩 —— 悬浮在用户信息卡片上方 */}
+          <img
+            src={`${import.meta.env.BASE_URL}dimo-mask.png`}
+            alt="" aria-hidden="true"
+            style={{
+              position: 'absolute', left: 16, top: -36,
+              width: 110, height: 'auto',
+              pointerEvents: 'none', userSelect: 'none',
+              zIndex: 1,
+            }}
+          />
           {/* ━━ 1+2 合并卡：用户信息 + 收集进度 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
           <div className="card animate-in" style={{
             margin: '0 16px 12px', padding: 0,

@@ -902,7 +902,7 @@ export default function Profile({ navigate }) {
             gap: 10, margin: '0 16px 12px',
           }}>
             {[
-              { label: '抓宠记录', cardImg: 'card-history.png', imgH: 62, action: () => setSubPage('history') },
+              { label: '抓宠记录', cardImg: 'card-history.png', imgH: 56, action: () => setSubPage('history') },
               { label: '果实攻略', cardImg: 'card-fruit.png',   imgH: 76, action: () => navigate('fruitGuide') },
               { label: '特殊形态', cardImg: 'card-special.png', imgH: 76, action: () => navigate('specialForms') },
               { label: '自定义方案', cardImg: 'card-plan.png',  imgH: 76, action: () => navigate('myCustomPlans') },

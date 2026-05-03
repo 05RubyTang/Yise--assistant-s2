@@ -649,7 +649,20 @@ export default function Profile({ navigate }) {
   const syncLabel = syncStatus === 'ready' ? '已同步' : syncStatus === 'offline' ? '离线' : '同步中';
 
   return (
-    <div className="page profile-page">
+    <div className="page profile-page" style={{ position: 'relative' }}>
+      {/* 我的页全局背景图 */}
+      <img
+        src={`${import.meta.env.BASE_URL}profile-bg.png`}
+        alt="" aria-hidden="true"
+        style={{
+          position: 'absolute', inset: 0,
+          width: '100%', height: '100%',
+          objectFit: 'cover', objectPosition: 'center top',
+          opacity: 0.12,
+          pointerEvents: 'none', userSelect: 'none',
+          zIndex: 0,
+        }}
+      />
       {/* 页头 —— 子页时显示返回按钮 */}
       <div className="page-header">
         {subPage === 'history' ? (
@@ -678,15 +691,14 @@ export default function Profile({ navigate }) {
             margin: '0 16px 12px', padding: 0,
             overflow: 'hidden', position: 'relative',
           }}>
-            {/* 我的页背景图 */}
+            {/* 迪莫剪影装饰 */}
             <img
-              src={`${import.meta.env.BASE_URL}profile-bg.png`}
+              src={`${import.meta.env.BASE_URL}dimo-bg.png`}
               alt="" aria-hidden="true"
               style={{
-                position: 'absolute', inset: 0,
-                width: '100%', height: '100%',
-                objectFit: 'cover', objectPosition: 'center top',
-                opacity: 0.18,
+                position: 'absolute', right: 14, top: 14,
+                width: 72, height: 72,
+                objectFit: 'contain', opacity: 0.10,
                 pointerEvents: 'none', userSelect: 'none',
               }}
             />

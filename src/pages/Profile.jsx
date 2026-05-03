@@ -685,7 +685,7 @@ export default function Profile({ navigate }) {
 
       {/* ══ 主页：我的 ══════════════════════════════════════════════════════════ */}
       {subPage === null && (
-        <>
+        <div style={{ paddingTop: 72 }}>
           {/* ━━ 1+2 合并卡：用户信息 + 收集进度 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
           <div className="card animate-in" style={{
             margin: '0 16px 12px', padding: 0,
@@ -1126,7 +1126,7 @@ export default function Profile({ navigate }) {
               </div>
             )}
           </div>
-        </>
+        </div>
       )}
 
       {/* ══ 子页：刷取记录 ══════════════════════════════════════════════════════ */}

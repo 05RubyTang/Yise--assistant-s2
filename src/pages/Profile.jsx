@@ -925,20 +925,25 @@ export default function Profile({ navigate }) {
                   overflow: 'visible',
                 }}
               >
-                {/* 黄色圆形装饰 */}
+                {/* 黄色圆形裁切容器（overflow:hidden 只裁圆，不裁dimo图） */}
                 <div style={{
-                  position: 'absolute', right: -30, bottom: -18,
-                  width: 100, height: 100, borderRadius: '50%',
-                  background: '#F5C842',
+                  position: 'absolute', inset: 0,
+                  borderRadius: 14, overflow: 'hidden',
                   zIndex: 0,
-                }} />
-                {/* 插图 */}
+                }}>
+                  <div style={{
+                    position: 'absolute', right: -20, bottom: -14,
+                    width: 80, height: 80, borderRadius: '50%',
+                    background: '#F5C842',
+                  }} />
+                </div>
+                {/* 插图（在裁切容器外，可自由超出卡片边框） */}
                 <img
                   src={`${import.meta.env.BASE_URL}${item.cardImg}`}
                   alt=""
                   style={{
-                    position: 'absolute', right: -16, bottom: -4,
-                    height: 90, width: 'auto',
+                    position: 'absolute', right: -10, bottom: -4,
+                    height: 76, width: 'auto',
                     objectFit: 'contain',
                     zIndex: 1,
                     pointerEvents: 'none',

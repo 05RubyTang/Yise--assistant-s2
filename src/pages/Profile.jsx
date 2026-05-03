@@ -921,7 +921,7 @@ export default function Profile({ navigate }) {
                   fontFamily: 'var(--font-body)',
                 }}
               >
-                <div style={{ fontSize: 13, fontWeight: 900, color: '#2B2A2E', fontFamily: 'var(--font-display)', whiteSpace: 'nowrap' }}>
+                <div style={{ fontSize: 16, fontWeight: 900, color: '#2B2A2E', fontFamily: 'var(--font-display)', whiteSpace: 'nowrap' }}>
                   {item.label}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>

@@ -655,7 +655,7 @@ export default function Profile({ navigate }) {
         src={`${import.meta.env.BASE_URL}profile-bg.png`}
         alt="" aria-hidden="true"
         style={{
-          position: 'absolute', top: 0, left: '50%',
+          position: 'absolute', top: -20, left: '50%',
           transform: 'translateX(-50%)',
           width: 390, height: 'auto',
           opacity: 1,
@@ -685,7 +685,7 @@ export default function Profile({ navigate }) {
 
       {/* ══ 主页：我的 ══════════════════════════════════════════════════════════ */}
       {subPage === null && (
-        <div style={{ paddingTop: 72 }}>
+        <div style={{ paddingTop: 160 }}>
           {/* ━━ 1+2 合并卡：用户信息 + 收集进度 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
           <div className="card animate-in" style={{
             margin: '0 16px 12px', padding: 0,

@@ -896,76 +896,43 @@ export default function Profile({ navigate }) {
             </div>
           </div>
 
-          {/* ━━ 3. 快捷功能 2×2 宫格（黑底白字） ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+          {/* ━━ 3. 快捷功能 2×2 宫格（白底黑字） ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
           <div style={{
             display: 'grid', gridTemplateColumns: '1fr 1fr',
             gap: 10, margin: '0 16px 12px',
           }}>
             {[
-              {
-                icon: '📋',
-                iconBg: 'rgba(255,255,255,0.12)',
-                label: '抓宠记录',
-                desc: '查看历史出货',
-                action: () => setSubPage('history'),
-              },
-              {
-                icon: null,
-                iconBg: 'rgba(255,255,255,0.12)',
-                iconImg: `${import.meta.env.BASE_URL}fruit-icon.png`,
-                label: '果实攻略',
-                desc: '果实获取位置',
-                action: () => navigate('fruitGuide'),
-              },
-              {
-                icon: '🌰',
-                iconBg: 'rgba(255,255,255,0.12)',
-                label: '特殊形态',
-                desc: '特殊形态精灵',
-                action: () => navigate('specialForms'),
-              },
-              {
-                icon: '🧪',
-                iconBg: 'rgba(255,255,255,0.12)',
-                label: '自定义方案',
-                desc: '我的方案 & 数据',
-                action: () => navigate('myCustomPlans'),
-              },
+              { label: '抓宠记录', desc: '查看历史出货', action: () => setSubPage('history') },
+              { label: '果实攻略', desc: '果实获取位置', action: () => navigate('fruitGuide') },
+              { label: '特殊形态', desc: '特殊形态精灵', action: () => navigate('specialForms') },
+              { label: '自定义方案', desc: '我的方案 & 数据', action: () => navigate('myCustomPlans') },
             ].map((item, i) => (
               <button
                 key={i}
                 onClick={item.action}
                 style={{
-                  display: 'flex', flexDirection: 'row', alignItems: 'center',
-                  gap: 10, padding: '12px 14px',
-                  border: 'none',
+                  display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+                  gap: 4, padding: '12px 14px',
+                  border: '1.5px solid var(--card-border)',
                   borderRadius: 'var(--radius)',
-                  background: '#2B2A2E',
-                  boxShadow: '0 2px 0 #111014',
+                  background: '#ffffff',
+                  boxShadow: 'var(--shadow-card)',
                   cursor: 'pointer', textAlign: 'left',
                   fontFamily: 'var(--font-body)',
                 }}
               >
-                {/* 图标 */}
-                <div style={{
-                  width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                  background: item.iconBg,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 20,
-                }}>
-                  {item.iconImg
-                    ? <img src={item.iconImg} alt={item.label} width={24} height={24} style={{ objectFit: 'contain' }} />
-                    : item.icon
-                  }
+                <div style={{ fontSize: 13, fontWeight: 900, color: '#2B2A2E', fontFamily: 'var(--font-display)', whiteSpace: 'nowrap' }}>
+                  {item.label}
                 </div>
-                {/* 文字 */}
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 900, color: '#FFFFFF', fontFamily: 'var(--font-display)', marginBottom: 2, whiteSpace: 'nowrap' }}>
-                    {item.label}
-                  </div>
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)', lineHeight: 1.4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.4 }}>
                     {item.desc}
-                  </div>
+                  </span>
+                  <img
+                    src={`${import.meta.env.BASE_URL}next-icon.png`}
+                    alt=""
+                    style={{ width: 16, height: 'auto', flexShrink: 0 }}
+                  />
                 </div>
               </button>
             ))}

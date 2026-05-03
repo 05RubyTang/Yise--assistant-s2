@@ -902,10 +902,10 @@ export default function Profile({ navigate }) {
             gap: 10, margin: '0 16px 12px',
           }}>
             {[
-              { label: '抓宠记录', cardImg: 'card-history.png', action: () => setSubPage('history') },
-              { label: '果实攻略', cardImg: 'card-fruit.png',   action: () => navigate('fruitGuide') },
-              { label: '特殊形态', cardImg: 'card-special.png', action: () => navigate('specialForms') },
-              { label: '自定义方案', cardImg: 'card-plan.png',  action: () => navigate('myCustomPlans') },
+              { label: '抓宠记录', cardImg: 'card-history.png', imgH: 62, action: () => setSubPage('history') },
+              { label: '果实攻略', cardImg: 'card-fruit.png',   imgH: 76, action: () => navigate('fruitGuide') },
+              { label: '特殊形态', cardImg: 'card-special.png', imgH: 76, action: () => navigate('specialForms') },
+              { label: '自定义方案', cardImg: 'card-plan.png',  imgH: 76, action: () => navigate('myCustomPlans') },
             ].map((item, i) => (
               <button
                 key={i}
@@ -943,7 +943,7 @@ export default function Profile({ navigate }) {
                   alt=""
                   style={{
                     position: 'absolute', right: -10, bottom: -4,
-                    height: 76, width: 'auto',
+                    height: item.imgH, width: 'auto',
                     objectFit: 'contain',
                     zIndex: 1,
                     pointerEvents: 'none',

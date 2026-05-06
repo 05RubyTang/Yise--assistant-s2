@@ -1,6 +1,7 @@
 import { useStore } from '../store';
 import SpiritAvatar from '../components/SpiritAvatar';
 import PlanIcon from '../components/PlanIcon';
+import { FruitLine } from '../components/FruitTag';
 
 function formatDate(isoStr) {
   if (!isoStr) return '';
@@ -134,15 +135,19 @@ export default function MyCustomPlans({ goBack }) {
                   <PlanIcon plan={plan} size={28} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
+                  {/* 方案名：优先用 label，兜底 type */}
                   <div style={{
                     fontSize: 15, fontWeight: 900, color: '#2B2A2E',
                     fontFamily: 'var(--font-display)',
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                   }}>
-                    {plan.name || `${plan.type}方案`}
+                    {plan.label || plan.type || '自定义方案'}
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, fontWeight: 500 }}>
-                    {plan.type && <span style={{ marginRight: 6 }}>{plan.type}系</span>}
+                  {/* 果实信息 */}
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3, marginBottom: 1 }}>
+                    <FruitLine fruitA={plan.fruitA} fruitB={plan.fruitB} size={13} />
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1, fontWeight: 500 }}>
                     {latestTask
                       ? `最近出货 ${formatDate(latestTask.completedAt)}`
                       : '暂无出货记录'}

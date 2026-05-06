@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import SpiritAvatar from './SpiritAvatar';
 
+const getModalRoot = () => document.getElementById('modal-root') || document.body;
+
 export default function ShinySelectModal({ plan, onSelect, onClose, hasTabBar = true }) {
   const hasPoolSpirits = Array.isArray(plan.shinies) && plan.shinies.length > 0;
   const [showInput, setShowInput] = useState(!hasPoolSpirits);
@@ -105,6 +107,6 @@ export default function ShinySelectModal({ plan, onSelect, onClose, hasTabBar = 
         <button className="modal-close" onClick={onClose}>取消</button>
       </div>
     </div>,
-    document.body
+    getModalRoot()
   );
 }

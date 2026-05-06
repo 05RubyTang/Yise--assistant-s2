@@ -1,5 +1,7 @@
 import { createPortal } from 'react-dom';
 
+const getModalRoot = () => document.getElementById('modal-root') || document.body;
+
 export default function ResultModal({ onResult, onClose, hasTabBar = true }) {
   return createPortal(
     <div className={`modal-overlay${hasTabBar ? '' : ' modal-overlay--no-tab'}`} onClick={onClose}>
@@ -79,6 +81,6 @@ export default function ResultModal({ onResult, onClose, hasTabBar = true }) {
         </button>
       </div>
     </div>,
-    document.body
+    getModalRoot()
   );
 }

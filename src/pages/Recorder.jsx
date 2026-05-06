@@ -166,7 +166,7 @@ export default function Recorder({ planId, navigate }) {
       {/* 顶部 header */}
       <div className="page-header" style={{ justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button className="back-btn" onClick={handleExit}>←</button>
+          <button className="back-btn" onClick={handleExit}><img src={`${import.meta.env.BASE_URL}back-icon.png`} alt="返回" /></button>
           {/* 属性图标 */}
           <div style={{
             width: 36, height: 36, borderRadius: 10,
@@ -301,9 +301,8 @@ export default function Recorder({ planId, navigate }) {
       }}>
         <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1.6 }}>💡</span>
         <span>
-          不论<span style={{ fontWeight: 800 }}>原色还是污染</span>，只要触发破盾都会计池。
-          遇到<span style={{ fontWeight: 800, color: '#C8830A' }}>果冻 / 星辰虫</span>时选对应选项——
-          仅计世界池，<span style={{ fontWeight: 800 }}>不计保底次数</span>。
+          1. 遇到<span style={{ fontWeight: 800, color: '#C8830A' }}>果冻 / 星辰虫</span>时选对应选项——仅计世界池。<br />
+          2. 左上角返回首页会<span style={{ fontWeight: 800 }}>自动暂停</span>。
         </span>
       </div>
 

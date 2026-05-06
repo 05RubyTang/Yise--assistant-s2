@@ -265,14 +265,29 @@ export default function Report({ planId, spiritName, resultType, navigate }) {
 
           {/* ── 咕噜球消耗 ── */}
           <div style={{ margin: '16px 16px 0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-              <div style={{ flex: 1, height: 1, background: 'rgba(103,93,83,0.15)' }} />
+            {/* 横幅标题 */}
+            <div style={{
+              position: 'relative',
+              width: '100%', height: 44,
+              marginBottom: 10,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <img
+                src={`${import.meta.env.BASE_URL}section-title-banner.png`}
+                alt=""
+                style={{
+                  position: 'absolute', inset: 0,
+                  width: '100%', height: '100%',
+                  objectFit: 'fill',
+                  pointerEvents: 'none',
+                }}
+              />
               <span style={{
-                fontSize: 12, fontWeight: 800, color: 'var(--text-light)',
-                padding: '3px 12px', borderRadius: 20,
-                background: '#F0E8D5', border: '1px solid rgba(103,93,83,0.2)',
+                position: 'relative', zIndex: 1,
+                fontSize: 14, fontWeight: 900,
+                color: '#FBC839', fontFamily: 'var(--font-display)',
+                letterSpacing: 2,
               }}>咕噜球消耗</span>
-              <div style={{ flex: 1, height: 1, background: 'rgba(103,93,83,0.15)' }} />
             </div>
 
             <div style={{

@@ -37,8 +37,10 @@ function getSpiritRecords(name, state) {
 
 // 支持 wiki 兜底的果实图卡
 function FruitImg({ name, size = 60 }) {
-  const localSrc = `${base}fruits/${encodeURIComponent(name)}.png?v=2`;
-  const wikiSrc = getWikiFruitImg(name);
+  const localSrc = `${base}fruits/${encodeURIComponent(name)}.png?v=3`;
+  const rawWikiSrc = getWikiFruitImg(name);
+  // v=3 用于破除浏览器对旧 wiki CDN URL 的缓存（果实图标 URL 有过变更）
+  const wikiSrc = rawWikiSrc ? `${rawWikiSrc}?v=3` : null;
   const [src, setSrc] = useState(localSrc);
   const [triedWiki, setTriedWiki] = useState(false);
 
@@ -106,22 +108,28 @@ function SpiritImg({ name, size = 60 }) {
 function PlanInfo({ plan }) {
   const relatedForms = SPECIAL_FORMS.filter(f => f.planIds.includes(plan.id));
   const isSeasonPlan = !!plan.season;
+  const isNoShiny = !!plan.noShiny;
 
   // 判断是否为单刷池（无 fruitB）还是属性池（有 fruitB）
   const isSingleFruit = !plan.fruitB;
 
-  // 同池精灵（展示在 = 右侧）
-  const visibleShinies = plan.shinies || [];
+  // = 右侧展示的精灵：noShiny 方案用 poolShinies，普通方案用 shinies
+  const visibleShinies = isNoShiny
+    ? (plan.poolShinies || [])
+    : (plan.shinies || []);
 
   // 标签文字与颜色
   const poolLabel = isSeasonPlan
     ? '赛季单刷池'
+    : isNoShiny ? '积累属系池'
     : isSingleFruit ? '单刷池' : '属性池';
   const poolColor = isSeasonPlan
     ? { bg: 'rgba(244,143,177,0.12)', border: 'rgba(244,143,177,0.4)', text: '#C0568A' }
-    : isSingleFruit
-      ? { bg: 'rgba(91,156,246,0.1)', border: 'rgba(91,156,246,0.3)', text: '#4A80D0' }
-      : { bg: 'rgba(103,170,92,0.1)', border: 'rgba(103,170,92,0.3)', text: '#4A8C40' };
+    : isNoShiny
+      ? { bg: 'rgba(255,193,7,0.1)', border: 'rgba(255,193,7,0.35)', text: '#9A7208' }
+      : isSingleFruit
+        ? { bg: 'rgba(91,156,246,0.1)', border: 'rgba(91,156,246,0.3)', text: '#4A80D0' }
+        : { bg: 'rgba(103,170,92,0.1)', border: 'rgba(103,170,92,0.3)', text: '#4A8C40' };
 
   return (
     <div style={{
@@ -138,7 +146,7 @@ function PlanInfo({ plan }) {
           <PlanIcon plan={plan} size={18} />
         </div>
         <span style={{ fontSize: 13, fontWeight: 800, flexShrink: 0 }}>
-          {plan.season ? plan.type : `${plan.type}方案`}
+          {plan.season ? (plan.type || '') : `${plan.label || plan.type || '自定义'}方案`}
         </span>
         {/* 池子类型 tag */}
         <span style={{
@@ -147,8 +155,17 @@ function PlanInfo({ plan }) {
           border: `1px solid ${poolColor.border}`, flexShrink: 0,
         }}>{poolLabel}</span>
 
-        {/* 同池精灵文字提示（非赛季属性池）*/}
-        {!isSeasonPlan && visibleShinies.length > 0 && (
+        {/* 积累属系池方案专属：回顾价格高 tag */}
+        {isNoShiny && (
+          <span style={{
+            fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 20,
+            background: 'rgba(255,193,7,0.18)', color: '#B8860B',
+            border: '1px solid rgba(255,193,7,0.5)', flexShrink: 0,
+          }}>回顾价格高</span>
+        )}
+
+        {/* 同池精灵文字提示（非赛季、非单刷、非积累属系池方案）*/}
+        {!isSeasonPlan && !plan.singleSpirit && !isNoShiny && visibleShinies.length > 0 && (
           <span style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.4 }}>
             同池：{plan.shinies.join('、')}
           </span>
@@ -168,7 +185,9 @@ function PlanInfo({ plan }) {
         <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'nowrap' }}>
           {visibleShinies.length > 0
             ? visibleShinies.map(n => <SpiritImg key={n} name={n} size={56} />)
-            : <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>{plan.shinies?.join('、') || '—'}</span>
+            : <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                {isNoShiny ? '积累属系池权重' : (plan.shinies?.join('、') || '—')}
+              </span>
           }
         </div>
       </div>
@@ -332,18 +351,19 @@ export default function Collection() {
   return (
     <div style={{ paddingBottom: 28 }}>
 
-      {/* ── 标题 + 活动说明 ── */}
-      <div style={{ padding: '20px 16px 12px' }}>
-        <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--text)', fontFamily: 'var(--font-display)', marginBottom: 4 }}>
-          S1 赛季 · 异色&奇遇
+      {/* ── 收集进度条（含标题+说明） ── */}
+      <div style={{ margin: '16px 16px 14px', padding: '12px 14px', background: 'var(--card)', border: '1.5px solid var(--card-border)', borderRadius: 'var(--radius-sm)', boxShadow: 'var(--shadow-card)' }}>
+        {/* 活动标题 + 说明 */}
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--text)', fontFamily: 'var(--font-display)', marginBottom: 3 }}>
+            S1 赛季 · 异色&奇遇
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.7 }}>
+            属性果实循环产出异色精灵；赛季奇遇精灵需完成第六章赛季任务后刷取
+          </div>
         </div>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.7 }}>
-          属性果实循环产出异色精灵；赛季奇遇精灵需完成第六章赛季任务后刷取
-        </div>
-      </div>
-
-      {/* ── 收集进度条 ── */}
-      <div style={{ margin: '0 16px 14px', padding: '12px 14px', background: 'var(--card)', border: '1.5px solid var(--card-border)', borderRadius: 'var(--radius-sm)', boxShadow: 'var(--shadow-card)' }}>
+        {/* 分隔线 */}
+        <div style={{ height: 1, background: 'var(--divider)', margin: '0 0 10px' }} />
         {/* 总进度 */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 7 }}>
           <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text)' }}>收集进度</span>
@@ -492,74 +512,81 @@ export default function Collection() {
       {/* ── 精灵详情弹窗 ── */}
       {selected && (
         <div className="modal-overlay" onClick={() => setSelected(null)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <div className="modal-handle" />
+          <div className="modal-content modal-content--fixed" onClick={e => e.stopPropagation()}>
+            {/* 弹窗把手（固定在顶部，不随内容滚动）*/}
+            <div style={{ flexShrink: 0, padding: '0 16px', position: 'relative' }}>
+              <div className="modal-handle" />
+              <button
+                onClick={() => setSelected(null)}
+                style={{
+                  position: 'absolute', top: -2, right: 16,
+                  border: '1.5px solid rgba(103,93,83,0.3)', background: 'var(--card-inner)',
+                  borderRadius: '50%', width: 28, height: 28, fontSize: 14,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: 'var(--text-light)', cursor: 'pointer', padding: 0, flexShrink: 0,
+                }}
+              >✕</button>
+            </div>
 
-            <button
-              onClick={() => setSelected(null)}
-              style={{
-                position: 'absolute', top: 16, right: 16,
-                border: '1.5px solid rgba(103,93,83,0.3)', background: 'var(--card-inner)',
-                borderRadius: '50%', width: 28, height: 28, fontSize: 14,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: 'var(--text-light)', cursor: 'pointer', padding: 0, flexShrink: 0,
-              }}
-            >✕</button>
-
-            {/* 头部：头像 + 名字 + 状态 + tag */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, paddingRight: 36 }}>
-              <SpiritAvatar name={selected} obtained={state.spirits[selected]?.obtained} size={60} showName={false} />
-              <div>
-                <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 5, fontFamily: 'var(--font-display)' }}>
-                  {selected}
-                </div>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                  {/* 获取状态 */}
-                  <span style={{
-                    display: 'inline-block', fontSize: 11, fontWeight: 700,
-                    padding: '2px 10px', borderRadius: 20,
-                    ...(state.spirits[selected]?.obtained
-                      ? { background: 'var(--success-dim)', color: 'var(--success)', border: '1.5px solid rgba(75,156,70,0.3)' }
-                      : { background: 'var(--card-inner)', color: 'var(--text-muted)', border: '1px solid var(--divider)' })
-                  }}>
-                    {state.spirits[selected]?.obtained ? '✓ 已获得' : '🔒 未获得'}
-                  </span>
-                  {/* 类型 tag */}
-                  <span style={{
-                    fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
-                    ...(selectedTag === 'adventure'
-                      ? { background: 'rgba(244,143,177,0.15)', color: '#C0568A', border: '1px solid rgba(244,143,177,0.4)' }
-                      : { background: 'rgba(103,170,92,0.13)', color: '#4A8C40', border: '1px solid rgba(103,170,92,0.3)' }
-                    ),
-                  }}>
-                    {selectedTag === 'adventure' ? '赛季奇遇' : '赛季异色'}
-                  </span>
+            {/* 可滚动内容区（弹窗外框固定，只有此区域滚动）*/}
+            <div className="modal-body">
+              {/* 头部：头像 + 名字 + 状态 + tag */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, paddingRight: 36 }}>
+                <SpiritAvatar name={selected} obtained={state.spirits[selected]?.obtained} size={60} showName={false} />
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 5, fontFamily: 'var(--font-display)' }}>
+                    {selected}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                    {/* 获取状态 */}
+                    <span style={{
+                      display: 'inline-block', fontSize: 11, fontWeight: 700,
+                      padding: '2px 10px', borderRadius: 20,
+                      ...(state.spirits[selected]?.obtained
+                        ? { background: 'var(--success-dim)', color: 'var(--success)', border: '1.5px solid rgba(75,156,70,0.3)' }
+                        : { background: 'var(--card-inner)', color: 'var(--text-muted)', border: '1px solid var(--divider)' })
+                    }}>
+                      {state.spirits[selected]?.obtained ? '✓ 已获得' : '🔒 未获得'}
+                    </span>
+                    {/* 类型 tag */}
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
+                      ...(selectedTag === 'adventure'
+                        ? { background: 'rgba(244,143,177,0.15)', color: '#C0568A', border: '1px solid rgba(244,143,177,0.4)' }
+                        : { background: 'rgba(103,170,92,0.13)', color: '#4A8C40', border: '1px solid rgba(103,170,92,0.3)' }
+                      ),
+                    }}>
+                      {selectedTag === 'adventure' ? '赛季奇遇' : '赛季异色'}
+                    </span>
+                  </div>
                 </div>
               </div>
+
+              {/* 刷取攻略标题 */}
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-light)', marginBottom: 8, letterSpacing: 0.5 }}>
+                刷取攻略
+              </div>
+
+              {/* 所有关联方案：积累属系池方案优先 */}
+              {selectedPlans.length > 0
+                ? [...selectedPlans]
+                    .sort((a, b) => (b.noShiny ? 1 : 0) - (a.noShiny ? 1 : 0))
+                    .map(plan => <PlanInfo key={plan.id} plan={plan} />)
+                : <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: 12 }}>暂无攻略数据</div>
+              }
+
+              {/* 获取记录 */}
+              {selectedRecords.length > 0 && (
+                <>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-light)', margin: '12px 0 4px', letterSpacing: 0.5 }}>
+                    获取记录
+                  </div>
+                  {selectedRecords.map((rec, i) => (
+                    <RecordRow key={rec.taskId} rec={rec} index={i} />
+                  ))}
+                </>
+              )}
             </div>
-
-            {/* 刷取攻略标题 */}
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-light)', marginBottom: 8, letterSpacing: 0.5 }}>
-              刷取攻略
-            </div>
-
-            {/* 所有关联方案（含属性池 & 单刷池区分）*/}
-            {selectedPlans.length > 0
-              ? selectedPlans.map(plan => <PlanInfo key={plan.id} plan={plan} />)
-              : <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: 12 }}>暂无攻略数据</div>
-            }
-
-            {/* 获取记录 */}
-            {selectedRecords.length > 0 && (
-              <>
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-light)', margin: '12px 0 4px', letterSpacing: 0.5 }}>
-                  获取记录
-                </div>
-                {selectedRecords.map((rec, i) => (
-                  <RecordRow key={rec.taskId} rec={rec} index={i} />
-                ))}
-              </>
-            )}
           </div>
         </div>
       )}

@@ -27,8 +27,10 @@ function SpiritImg({ name, size = 80 }) {
 
 // 果实图（本地优先，兜底 wiki CDN）
 function FruitImg({ name, size = 80 }) {
-  const localSrc = `${base}fruits/${encodeURIComponent(name)}.png`;
-  const wikiSrc = getWikiFruitImg(name);
+  const localSrc = `${base}fruits/${encodeURIComponent(name)}.png?v=3`;
+  const rawWikiSrc = getWikiFruitImg(name);
+  // v=3 用于破除浏览器对旧 wiki CDN URL 的缓存
+  const wikiSrc = rawWikiSrc ? `${rawWikiSrc}?v=3` : null;
   const [src, setSrc] = useState(localSrc);
   const [triedWiki, setTriedWiki] = useState(false);
 

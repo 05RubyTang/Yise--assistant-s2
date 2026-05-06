@@ -94,6 +94,9 @@ export default function AttrPlanDetail({ planId, navigate, goBack }) {
   // 筛选属于该属性的用户自定义方案
   const userPlans = (state.userPlanConfig || []).filter(p => p.attrId === planId);
 
+  // 筛选「积累属系池」辅助方案（noShiny 且 attrId 指向当前属系）
+  const poolPlans = PLANS.filter(p => p.noShiny && p.attrId === planId);
+
   if (!defaultPlan) {
     return (
       <div style={{ padding: 24, color: 'var(--text-muted)', fontSize: 14 }}>
@@ -151,6 +154,106 @@ export default function AttrPlanDetail({ planId, navigate, goBack }) {
         />
       </div>
 
+      {/* ── 积累属系池辅助方案（有才展示） ── */}
+      {poolPlans.length > 0 && (
+        <>
+          <div style={{
+            margin: '4px 16px 8px',
+            fontSize: 11, fontWeight: 700, color: 'var(--text-muted)',
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+            <span style={{ display: 'inline-block', height: 1, flex: 1, background: 'var(--divider)' }} />
+            积累属系池
+            <span style={{ display: 'inline-block', height: 1, flex: 1, background: 'var(--divider)' }} />
+          </div>
+
+          {poolPlans.map((plan, idx) => {
+            const isPoolActive = activePlanIds.includes(plan.id);
+            // 可产出的异色 = 父属系方案的 shinies
+            const producibleShinies = plan.poolShinies?.length > 0
+              ? plan.poolShinies
+              : (defaultPlan.shinies || []);
+            const headerBg = isPoolActive ? '#C8830A' : '#2B2A2E';
+            return (
+              <div
+                key={plan.id}
+                className="plan-card animate-in"
+                style={{
+                  animationDelay: `${(idx + 1) * 0.04}s`,
+                  borderColor: isPoolActive ? '#C8830A' : '#675D53',
+                  boxShadow: isPoolActive ? '0 2px 0 #C8830A' : '0 2px 0 #675D53',
+                  padding: 0, overflow: 'hidden', background: '#FBF7EC', cursor: 'pointer',
+                }}
+                onClick={() => {
+                  if (isPoolActive) navigate('recorder', { planId: plan.id });
+                  else navigate('checklist', { planId: plan.id });
+                }}
+              >
+                {/* 表头 */}
+                <div style={{ background: headerBg, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <PlanIcon plan={plan} size={26} style={{ flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 14, fontWeight: 900, fontFamily: 'var(--font-display)', color: '#FBF7EC', letterSpacing: 0.5 }}>
+                        {plan.type}
+                      </span>
+                      <span style={{
+                        fontSize: 8, fontWeight: 800, padding: '1px 5px', borderRadius: 20,
+                        background: 'rgba(251,247,236,0.15)', color: 'rgba(251,247,236,0.75)',
+                        border: '1px solid rgba(251,247,236,0.3)', flexShrink: 0,
+                      }}>无异色 · 积累属系池</span>
+                      {plan.highValue && (
+                        <span style={{
+                          fontSize: 8, fontWeight: 800, padding: '1px 5px', borderRadius: 20,
+                          background: 'rgba(251,222,77,0.25)', color: '#FFE566',
+                          border: '1px solid rgba(251,222,77,0.55)', flexShrink: 0,
+                        }}>回顾价格高</span>
+                      )}
+                    </div>
+                  </div>
+                  {isPoolActive && (
+                    <span style={{
+                      fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 20,
+                      background: 'rgba(251,247,236,0.25)', color: '#FBF7EC',
+                      border: '1px solid rgba(251,247,236,0.4)', flexShrink: 0,
+                    }}>刷取中</span>
+                  )}
+                </div>
+
+                {/* 内容区 */}
+                <div style={{ padding: '10px 14px 12px' }}>
+                  {/* 果实行 */}
+                  <div style={{ fontSize: 11, color: 'var(--text-light)', marginBottom: 10 }}>
+                    <FruitLine fruitA={plan.fruitA} fruitB={plan.fruitB} size={14} />
+                  </div>
+
+                  {/* 可产出异色精灵 */}
+                  {producibleShinies.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 700, marginBottom: 6, letterSpacing: 0.3 }}>
+                        可产出（{defaultPlan.type}属系池）：
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                        {producibleShinies.map(name => (
+                          <SpiritAvatar key={name} name={name} obtained={state.spirits[name]?.obtained} size={36} />
+                        ))}
+                        <span style={{
+                          marginLeft: 'auto', fontSize: 11,
+                          color: isPoolActive ? 'var(--cta)' : 'var(--text-muted)',
+                          fontWeight: isPoolActive ? 700 : 600,
+                        }}>
+                          {isPoolActive ? '继续刷取 →' : '点击开始 →'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </>
+      )}
+
       {/* ── 我的自定义方案（有才展示） ── */}
       {userPlans.length > 0 && (
         <>
@@ -187,7 +290,6 @@ export default function AttrPlanDetail({ planId, navigate, goBack }) {
         background: 'linear-gradient(to top, var(--bg) 75%, transparent)',
         zIndex: 10,
       }}>
-        {/* 复用 .btn 自带的 margin: 8px 16px 实现左右等距居中 */}
         <button
           className="btn btn-primary"
           style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}

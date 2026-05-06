@@ -147,6 +147,14 @@ export const FRUITS_WIKI_IMG = {
   "小电企鹅果实": "https://patchwiki.biligame.com/images/rocom/e/eb/2ko1xdzesjhz4kd02yein10nyr7szfj.png",
   "鸭吉吉果实（起来鸭）": "https://patchwiki.biligame.com/images/rocom/0/0a/7nah7p7y7sk0ajmphsefzucj5dksaj0.png",
   "火红尾果实": "https://patchwiki.biligame.com/images/rocom/3/33/2nendig3j5p6cgmbpolnggo2bg1wmyz.png",
+  // 以下果实 bwiki 无独立页面，按进化链/同族共用关系对应正确果实图
+  "火焰猿果实":   "https://patchwiki.biligame.com/images/rocom/c/c6/mqkzqm1sqkemx7y6mnqvlzufmrzafgh.png", // 与可爱猿果实相同
+  "尖嘴狐仙果实": "https://patchwiki.biligame.com/images/rocom/7/7f/pa3zm1znhxejbmvskbjhojmsnhad9pl.png", // 与灵狐果实相同
+  // 波多西/蹦蹦花/独角兽 bwiki 无页面，暂用通用果实道具图标
+  "波多西果实":   "https://patchwiki.biligame.com/images/rocom/f/fb/dd4np19ke066xpmv89ygh8plkpr2i2f.png",
+  "蹦蹦花果实":   "https://patchwiki.biligame.com/images/rocom/f/fb/dd4np19ke066xpmv89ygh8plkpr2i2f.png",
+  "独角兽果实":   "https://patchwiki.biligame.com/images/rocom/f/fb/dd4np19ke066xpmv89ygh8plkpr2i2f.png",
+  // 注：哭哭菇果实/小夜果实/绒绒果实 已在上方有正确条目，此处删除重复键
 };
 
 /**

@@ -46,15 +46,17 @@ function AuthToast() {
 
   if (!authToast) return null;
 
-  const isBind = authToast.type === 'bind';
+  const toastCfg = {
+    bind:   { icon: '🎉', title: '邮箱绑定成功！' },
+    login:  { icon: '✅', title: '登录成功，数据已恢复！' },
+    switch: { icon: '🔄', title: '已切换账号！' },
+  }[authToast.type] ?? { icon: '✅', title: '操作成功！' };
 
   return (
     <div className="auth-toast" onClick={clearAuthToast}>
-      <div className="auth-toast-icon">{isBind ? '🎉' : '✅'}</div>
+      <div className="auth-toast-icon">{toastCfg.icon}</div>
       <div className="auth-toast-body">
-        <div className="auth-toast-title">
-          {isBind ? '邮箱绑定成功！' : '登录成功，数据已恢复！'}
-        </div>
+        <div className="auth-toast-title">{toastCfg.title}</div>
         <div className="auth-toast-email">{authToast.email}</div>
       </div>
       <button className="auth-toast-close">✕</button>
@@ -130,7 +132,7 @@ function AppInner() {
       case 'specialForms':
         return <SpecialForms goBack={goBack} />;
       case 'customChecklist':
-        return <CustomChecklist navigate={navigate} goBack={goBack} />;
+        return <CustomChecklist navigate={navigate} goBack={goBack} saveOnly={!!current.params.saveOnly} />;
       case 'myCustomPlans':
         return <MyCustomPlans goBack={goBack} />;
       default:
@@ -187,6 +189,9 @@ function AppInner() {
           <TabBar current={current.name} onChange={(tab) => navigate(tab)} />
         </>
       )}
+      {/* Portal 挂载点：弹窗 createPortal 指向此节点，
+          使其在桌面端被约束在样机壳内，手机端保持全屏行为不变 */}
+      <div id="modal-root" />
     </div>
   );
 }

@@ -605,35 +605,61 @@ async function hydrateFromCloud(uid, dispatch, localFallback) {
 
   let cloudData = row?.data;
 
-  // ── 跨浏览器绑定兜底 ────────────────────────────────────────────────────
-  // 场景：微信匿名用户（uid=A）发绑定邮件，邮箱 App / Safari 打开链接 → uid=B
-  //   forceSyncNow(email) 提前把 user_email=email 写进 uid=A 那行
-  //   这里用 session 的 email 反查 user_email 列，找到 uid=A 的数据并合并
-  if (!cloudData || (!cloudData.spirits && !cloudData.completedTasks)) {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const email = session?.user?.email;
-      if (email) {
-        const { data: emailRow } = await supabase
-          .from('user_data')
-          .select('data, avatar, user_name')
-          .eq('user_email', email)      // 用已有的 user_email 列反查
-          .neq('user_id', uid)          // 排除自身
-          .order('updated_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (emailRow?.data) {
-          cloudData = emailRow.data;
-          if (emailRow.avatar) localStorage.setItem('lk_user_avatar', emailRow.avatar);
-          if (emailRow.user_name && !localStorage.getItem('lk_username')) {
-            localStorage.setItem('lk_username', emailRow.user_name);
+  // ── 同邮箱多账号合并 ─────────────────────────────────────────────────────
+  // 同一用户可能在多个设备分别绑定/找回，产生多条 user_id 不同但 email 相同的行。
+  // 无论当前 email uid 是否已有数据，都查出所有关联行并取数据并集，
+  // 确保不同设备的异色记录全部合并进来，不因 limit(1) 或条件判断而丢失。
+  //
+  // 命中条件（OR）：
+  //   user_email = email         ← 之前绑定/同步时写入
+  //   pending_bind_email = email ← forceSyncNow 写入，标记"待合并"
+  //
+  // 合并后清除 pending_bind_email 标记，防止下次重复合并。
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const email = session?.user?.email;
+    if (email) {
+      const { data: relatedRows } = await supabase
+        .from('user_data')
+        .select('user_id, data, avatar, user_name, pending_bind_email')
+        .or(`user_email.eq.${email},pending_bind_email.eq.${email}`)
+        .neq('user_id', uid);           // 排除当前 uid 自身
+
+      if (relatedRows?.length > 0) {
+        let mergedCount = 0;
+        for (const relRow of relatedRows) {
+          const rd = relRow?.data;
+          if (rd && (rd.spirits || rd.completedTasks)) {
+            // 每行数据逐一与 cloudData 取并集（mergeStates 完全幂等）
+            cloudData = cloudData
+              ? mergeStates(rd, cloudData)
+              : rd;
+            mergedCount++;
+            if (!row?.avatar && relRow.avatar) {
+              localStorage.setItem('lk_user_avatar', relRow.avatar);
+            }
+            if (!localStorage.getItem('lk_username') && relRow.user_name) {
+              localStorage.setItem('lk_username', relRow.user_name);
+            }
           }
-          console.log('[Supabase] 跨浏览器绑定兜底：从旧 uid 恢复数据成功');
+          // 有 pending 标记的行，合并后清除（避免重复合并）
+          if (relRow.pending_bind_email) {
+            supabase
+              .from('user_data')
+              .update({ pending_bind_email: null })
+              .eq('user_id', relRow.user_id)
+              .then(({ error: clearErr }) => {
+                if (clearErr) console.warn('[Supabase] 清除 pending_bind_email 失败:', clearErr.message);
+              });
+          }
+        }
+        if (mergedCount > 0) {
+          console.log(`[Supabase] 同邮箱多账号合并：共合并 ${mergedCount} 条关联数据`);
         }
       }
-    } catch (e) {
-      console.warn('[Supabase] 跨浏览器兜底查询失败:', e.message);
     }
+  } catch (e) {
+    console.warn('[Supabase] 同邮箱多账号合并查询失败:', e.message);
   }
 
   if (cloudData && (cloudData.spirits || cloudData.completedTasks)) {
@@ -690,8 +716,10 @@ export function StoreProvider({ children }) {
   const userIdRef = useRef(null);
   // init 是否已经完成（区分 SDK 启动时的自动 SIGNED_IN 与用户操作触发的）
   const initDoneRef = useRef(false);
+  // 待执行的登录模式：'normal'（找回/绑定，合并本地数据）| 'switch'（切换账号，不合并）
+  const pendingAuthModeRef = useRef('normal');
   // 绑定/登录成功后弹出的全局 Toast
-  // { type: 'bind' | 'login', email: string } | null
+  // { type: 'bind' | 'login' | 'switch', email: string } | null
   const [authToast, setAuthToast] = useState(null);
 
   // ── 初始化：匿名登录 + 拉取云端数据 ────────────────────────────────────────
@@ -831,17 +859,23 @@ export function StoreProvider({ children }) {
             return;
           }
 
-          // uid 不同 = 换设备 OTP 登录 / 邮件找回，合并云端 + 本地数据
+          // uid 不同 = 换设备 OTP 登录 / 邮件找回 / 切换账号
+          const isSwitching = pendingAuthModeRef.current === 'switch';
+          pendingAuthModeRef.current = 'normal'; // 消费后立即重置
           setAuthUser(session.user);
           setUserId(uid);
           userIdRef.current = uid;
           setSyncStatus('syncing');
           try {
-            // 传入当前本地数据作为 localFallback，确保合并时不丢本地记录
-            await hydrateFromCloud(uid, dispatch, getLocalState());
+            // 切换账号：传空的默认 state 作为 localFallback，不把当前设备数据合并进新账号
+            // 找回账号：传当前本地数据，确保合并时不丢本地记录
+            await hydrateFromCloud(
+              uid, dispatch,
+              isSwitching ? buildDefaultState() : getLocalState()
+            );
             setSyncStatus('ready');
             if (session.user.email) {
-              setAuthToast({ type: 'login', email: session.user.email });
+              setAuthToast({ type: isSwitching ? 'switch' : 'login', email: session.user.email });
               // 更新 user_email + last_active_at（user_name/avatar 已由 hydrateFromCloud 处理）
               supabase.from('user_data').upsert({
                 user_id: uid,
@@ -934,8 +968,13 @@ export function StoreProvider({ children }) {
     return 'ok';
   };
 
+  // ── 设置下次登录的模式（BindEmailModal 在发 OTP 前调用）─────────────────────
+  // 'normal'：找回/绑定，合并当前设备本地数据
+  // 'switch'：切换账号，仅加载目标账号云端数据，不合并当前设备数据
+  const setAuthMode = (mode) => { pendingAuthModeRef.current = mode; };
+
   return (
-    <StoreContext.Provider value={{ state, dispatch, syncStatus, userId, authUser, authToast, clearAuthToast: () => setAuthToast(null), forceSyncNow }}>
+    <StoreContext.Provider value={{ state, dispatch, syncStatus, userId, authUser, authToast, clearAuthToast: () => setAuthToast(null), forceSyncNow, setAuthMode }}>
       {children}
     </StoreContext.Provider>
   );

@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import { useStore } from '../store';
 import { supabase } from '../supabase';
 import BindEmailModal from '../components/BindEmailModal';
+
+const getModalRoot = () => document.getElementById('modal-root') || document.body;
 import PlanIcon from '../components/PlanIcon';
 import SpiritAvatar from '../components/SpiritAvatar';
 import { PLANS, ALL_SHINIES, inferPoolType, POOL_TYPE_CONFIG } from '../data/plans';
@@ -443,6 +445,28 @@ function AvatarUploader({ avatarUrl, onFileChange }) {
 
 const CHANGELOG = [
   {
+    version: 'v2.2',
+    date: '2026-05-06',
+    tags: ['优化', '账号'],
+    items: [
+      '邮箱绑定新增「切换账号」功能：换号玩的同学可以直接切到另一个已绑定的邮箱账号，当前设备数据不会混入',
+      '多设备数据合并优化：同一邮箱在不同设备操作产生的多条记录，登录后会自动取并集，异色收集进度一条不丢',
+      '找回账号时，新设备上的抓宠记录也会同步合并进来，不再因"换设备找回"而丢失进度',
+    ],
+  },
+  {
+    version: 'v2.1',
+    date: '2026-05-04',
+    tags: ['优化', '新方案'],
+    items: [
+      '方案库「全部」视图调整：自定义方案区块提至最前，方便直接找到自己的方案',
+      '图鉴：补充普通异色精灵的单刷方案与奇遇精灵的属性混抓方案',
+      '重构了「方案」页，修复了自定义方案在「方案」页找不到的问题，历史新建过的方案都会收录在此',
+      '新增「积累属系池」方案 × 5：🔥火系（火焰猿+尖嘴狐仙）、🌿草系（蹦蹦花）、⚙️机械系（波多西+圣剑侍从）、💧水系（深蓝鲸）、🌸萌系（菊花梨）——适合目标精灵无异色但想稳定积累属系权重的玩家',
+      '新增✨光系积累方案（小独角兽果实）：小独角兽第二属性为光系，使用其果实可间接积累光系池，产出疾光千兽 / 绒仙子 / 嗜光嗡嗡异色',
+    ],
+  },
+  {
     version: 'v2.0',
     date: '2025-04-30',
     tags: ['新功能', '修复'],
@@ -483,6 +507,7 @@ const TAG_COLORS = {
   '机制同步': { bg: 'rgba(200,131,10,0.12)', color: '#C8830A', border: 'rgba(200,131,10,0.3)' },
   '首次发布': { bg: 'rgba(91,156,246,0.12)', color: '#5B9CF6', border: 'rgba(91,156,246,0.3)' },
   '优化': { bg: 'rgba(126,87,194,0.12)', color: '#7E57C2', border: 'rgba(126,87,194,0.3)' },
+  '新方案': { bg: 'rgba(200,131,10,0.12)', color: '#C8830A', border: 'rgba(200,131,10,0.3)' },
 };
 
 function ChangelogModal({ onClose }) {
@@ -579,7 +604,7 @@ function ChangelogModal({ onClose }) {
         </div>
       </div>
     </div>,
-    document.body
+    getModalRoot()
   );
 }
 
@@ -588,6 +613,7 @@ export default function Profile({ navigate }) {
   // null = 主页，'history' = 刷取记录子页
   const [subPage, setSubPage] = useState(null);
   const [showChangelog, setShowChangelog] = useState(false);
+  // showBindModal: false | 'bind' | 'login' | 'switch'
   const [showBindModal, setShowBindModal] = useState(false);
   const [bindSentEmail, setBindSentEmail] = useState(null);
   const { avatarUrl, handleFileChange } = useAvatar();
@@ -601,6 +627,9 @@ export default function Profile({ navigate }) {
 
   // ── 更新公告折叠状态 ──
   const [guideExpanded, setGuideExpanded] = useState(false);
+
+  // ── 开发者的话折叠状态 ──
+  const [devNoteExpanded, setDevNoteExpanded] = useState(false);
 
   // ── 问题反馈 ──
   const [fbContent, setFbContent] = useState('');
@@ -632,9 +661,9 @@ export default function Profile({ navigate }) {
   const isBound = !!authUser?.email;
   const userEmail = authUser?.email ?? null;
 
-  // 统计（收集）
-  const totalObtained = Object.values(state.spirits).filter(s => s.obtained).length;
-  const totalSpirits = Object.keys(state.spirits).length;
+  // 统计（收集）—— 只统计图鉴里有异色的精灵（ALL_SHINIES，即 19 只）
+  const totalSpirits  = ALL_SHINIES.length;  // 19
+  const totalObtained = ALL_SHINIES.filter(name => state.spirits[name]?.obtained).length;
   const completionPct = totalSpirits > 0 ? Math.round((totalObtained / totalSpirits) * 100) : 0;
 
   // 统计（历史）
@@ -805,7 +834,7 @@ export default function Profile({ navigate }) {
                       需从<span style={{ fontWeight: 700 }}>浏览器</span>打开使用，微信渠道暂不支持；每日绑定数量有上限，遇失败请次日再试～
                     </div>
                     <button
-                      onClick={() => setShowBindModal(true)}
+                      onClick={() => setShowBindModal('bind')}
                       style={{
                         width: '100%', padding: '10px 0',
                         border: '1.5px solid #C8830A', borderRadius: 10,
@@ -834,16 +863,28 @@ export default function Profile({ navigate }) {
                     <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>
                       绑定邮箱：<span style={{ color: 'var(--success)', fontWeight: 700 }}>{userEmail}</span>
                     </div>
-                    <button
-                      onClick={() => setShowBindModal(true)}
-                      style={{
-                        width: '100%', padding: '9px 0',
-                        border: '1px solid var(--divider)', borderRadius: 10,
-                        background: 'var(--card-inner)', color: 'var(--text)',
-                        fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                        fontFamily: 'var(--font-body)',
-                      }}
-                    >换绑 / 找回账号</button>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        onClick={() => setShowBindModal('login')}
+                        style={{
+                          flex: 1, padding: '9px 0',
+                          border: '1px solid var(--divider)', borderRadius: 10,
+                          background: 'var(--card-inner)', color: 'var(--text)',
+                          fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                          fontFamily: 'var(--font-body)',
+                        }}
+                      >换绑 / 找回账号</button>
+                      <button
+                        onClick={() => setShowBindModal('switch')}
+                        style={{
+                          flex: 1, padding: '9px 0',
+                          border: '1.5px solid #7B68EE', borderRadius: 10,
+                          background: 'rgba(123,104,238,0.07)', color: '#5B4ECC',
+                          fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                          fontFamily: 'var(--font-body)',
+                        }}
+                      >🔄 切换账号</button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -900,7 +941,7 @@ export default function Profile({ navigate }) {
             gap: 10, margin: '0 16px 12px',
           }}>
             {[
-              { label: '抓宠记录', cardImg: 'card-history.png', imgH: 56, action: () => setSubPage('history') },
+              { label: '抓宠记录', cardImg: 'card-history.png', imgH: 68, action: () => setSubPage('history') },
               { label: '果实攻略', cardImg: 'card-fruit.png',   imgH: 76, action: () => navigate('fruitGuide') },
               { label: '特殊形态', cardImg: 'card-special.png', imgH: 76, action: () => navigate('specialForms') },
               { label: '自定义方案', cardImg: 'card-plan.png',  imgH: 76, action: () => navigate('myCustomPlans') },
@@ -914,10 +955,10 @@ export default function Profile({ navigate }) {
                   justifyContent: 'flex-end',
                   gap: 6, padding: '12px 14px 12px',
                   height: 82,
-                  border: '2px solid #2B2A2E',
-                  borderRadius: 16,
+                  border: '1.5px solid var(--card-border)',
+                  borderRadius: 10,
                   background: '#ffffff',
-                  boxShadow: '0 3px 0 #2B2A2E',
+                  boxShadow: 'var(--shadow-card)',
                   cursor: 'pointer', textAlign: 'left',
                   fontFamily: 'var(--font-body)',
                   overflow: 'visible',
@@ -926,7 +967,7 @@ export default function Profile({ navigate }) {
                 {/* 黄色圆形裁切容器（overflow:hidden 只裁圆，不裁dimo图） */}
                 <div style={{
                   position: 'absolute', inset: 0,
-                  borderRadius: 14, overflow: 'hidden',
+                  borderRadius: 10, overflow: 'hidden',
                   zIndex: 0,
                 }}>
                   <div style={{
@@ -968,7 +1009,7 @@ export default function Profile({ navigate }) {
               onClick={() => setGuideExpanded(v => !v)}
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                width: '100%', padding: '13px 16px',
+                width: '100%', padding: '6px 16px',
                 border: '1.5px solid var(--card-border)',
                 borderRadius: guideExpanded ? '12px 12px 0 0' : 'var(--radius)',
                 background: '#ffffff',
@@ -978,17 +1019,21 @@ export default function Profile({ navigate }) {
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <img src={`${import.meta.env.BASE_URL}announcement-icon.png`} alt="" style={{ width: 28, height: 'auto' }} />
-                <span style={{ fontSize: 16, fontWeight: 800, color: '#2B2A2E', fontFamily: 'var(--font-display)' }}>
+                <img src={`${import.meta.env.BASE_URL}announcement-icon.png`} alt="" style={{ width: 24, height: 'auto' }} />
+                <span style={{ fontSize: 16, fontWeight: 800, color: '#675D53', fontFamily: 'var(--font-display)' }}>
                   更新公告
                 </span>
               </div>
-              <span style={{
-                fontSize: 14, color: 'var(--text-muted)',
-                transform: guideExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
-                transition: 'transform 0.2s',
-                display: 'inline-block',
-              }}>›</span>
+              <img
+                src={`${import.meta.env.BASE_URL}next-icon.png`}
+                alt=""
+                style={{
+                  width: 22, height: 'auto',
+                  transform: guideExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.2s',
+                  display: 'inline-block',
+                }}
+              />
             </button>
 
             {guideExpanded && (
@@ -1010,7 +1055,7 @@ export default function Profile({ navigate }) {
                       padding: '9px 0', borderBottom: '1px solid var(--divider)',
                     }}>
                       <span style={{ fontSize: 12, color: 'var(--text-light)', fontWeight: 500 }}>版本</span>
-                      <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>v2.0</span>
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>v2.2</span>
                     </div>
                     <div
                       style={{
@@ -1063,32 +1108,72 @@ export default function Profile({ navigate }) {
             )}
           </div>
 
-          {/* ━━ 开发者的话 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-          <div className="profile-section dev-note-section">
-            <div className="section-title">开发者的话</div>
-            <div className="dev-note-card">
-              <div className="dev-note-avatar-row">
-                <div className="dev-note-avatar">🧑‍💻</div>
-                <div className="dev-note-identity">
-                  <div className="dev-note-name">Bing</div>
-                  <div className="dev-note-handle">小红书 @Bing的学习日常</div>
-                </div>
-              </div>
-              <p className="dev-note-text">
-                Hi！我是 Bing，交互设计专业在读学生，28 届毕业选手，设计 &amp; 程序一体机 vibe coding 爱好者。这个 App 是用爱发电做的小工具，希望能帮到每一位在洛克王国刷异色的你 ✨
-              </p>
-              <a
-                className="dev-note-xhs-btn"
-                href="https://www.xiaohongshu.com/user/profile/60a77be2000000000100a4f3"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15l-4-4 1.41-1.41L11 14.17l6.59-6.58L19 9l-8 8z"/>
+          {/* ━━ 开发者的话（折叠） ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+          <div style={{ margin: '0 16px 12px' }}>
+            <button
+              onClick={() => setDevNoteExpanded(v => !v)}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                width: '100%', padding: '6px 16px',
+                border: '1.5px solid var(--card-border)',
+                borderRadius: devNoteExpanded ? '12px 12px 0 0' : 'var(--radius)',
+                background: '#ffffff',
+                boxShadow: devNoteExpanded ? 'none' : 'var(--shadow-card)',
+                cursor: 'pointer', fontFamily: 'var(--font-body)',
+                boxSizing: 'border-box',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" style={{ width: 24, height: 24, flexShrink: 0 }}>
+                  <path d="M944.12 345.193333c-23.773333-50.853333-57.76-96.486667-101.026667-135.626666-43.093333-39-93.266667-69.606667-149.093333-90.973334C636.333333 96.526667 575.093333 85.333333 512 85.333333s-124.333333 11.193333-182 33.26c-55.82 21.366667-106 52-149.093333 90.973334-43.26 39.14-77.246667 84.773333-101.02 135.626666A391.093333 391.093333 0 0 0 42.666667 512c0 119.68 54.806667 232.9 151.1 313.64-30.666667 40.166667-74.926667 76.58-140.74 116.066667A21.333333 21.333333 0 0 0 64 981.333333c64.953333 0 124.666667-6.46 177.486667-19.206666 45.026667-10.86 85.226667-26.313333 119.68-46A511.086667 511.086667 0 0 0 512 938.666667c63.093333 0 124.333333-11.193333 182-33.26 55.82-21.333333 106-52 149.086667-90.973334 43.266667-39.14 77.253333-84.773333 101.026666-135.626666a392.46 392.46 0 0 0 0-333.613334zM298.666667 554.666667a42.666667 42.666667 0 1 1 42.666666-42.666667 42.666667 42.666667 0 0 1-42.666666 42.666667z m213.333333 0a42.666667 42.666667 0 1 1 42.666667-42.666667 42.666667 42.666667 0 0 1-42.666667 42.666667z m213.333333 0a42.666667 42.666667 0 1 1 42.666667-42.666667 42.666667 42.666667 0 0 1-42.666667 42.666667z" fill="#2B2A2E"/>
                 </svg>
-                去小红书找我聊
-              </a>
-            </div>
+                <span style={{ fontSize: 16, fontWeight: 800, color: '#675D53', fontFamily: 'var(--font-display)' }}>
+                  开发者的话
+                </span>
+              </div>
+              <img
+                src={`${import.meta.env.BASE_URL}next-icon.png`}
+                alt=""
+                style={{
+                  width: 22, height: 'auto',
+                  transform: devNoteExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.2s',
+                  display: 'inline-block',
+                }}
+              />
+            </button>
+
+            {devNoteExpanded && (
+              <div style={{
+                border: '1.5px solid var(--card-border)',
+                borderTop: 'none',
+                borderRadius: '0 0 12px 12px',
+                background: '#ffffff',
+                padding: '12px 16px 14px',
+              }}>
+                <div className="dev-note-avatar-row">
+                  <div className="dev-note-avatar">🧑‍💻</div>
+                  <div className="dev-note-identity">
+                    <div className="dev-note-name">Bing</div>
+                    <div className="dev-note-handle">小红书 @Bing的学习日常</div>
+                  </div>
+                </div>
+                <p className="dev-note-text">
+                  Hi！我是 Bing，交互设计专业在读学生，28 届毕业选手，设计 &amp; 程序一体机 vibe coding 爱好者。这个 App 是用爱发电做的小工具，希望能帮到每一位在洛克王国刷异色的你 ✨
+                </p>
+                <a
+                  className="dev-note-xhs-btn"
+                  href="https://www.xiaohongshu.com/user/profile/60a77be2000000000100a4f3"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15l-4-4 1.41-1.41L11 14.17l6.59-6.58L19 9l-8 8z"/>
+                  </svg>
+                  去小红书找我聊
+                </a>
+              </div>
+            )}
           </div>
 
           {/* ━━ 问题反馈 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
@@ -1216,11 +1301,14 @@ export default function Profile({ navigate }) {
       {/* 邮箱绑定弹窗 */}
       {showBindModal && (
         <BindEmailModal
+          initialMode={showBindModal === true ? 'bind' : showBindModal}
           onClose={() => setShowBindModal(false)}
-          onSuccess={(email) => {
-            // 邮件发出后关闭弹窗，顶部显示提示条
-            // 真正的账号升级在用户点邮件链接后由 store 的 onAuthStateChange 自动完成
-            setBindSentEmail(email);
+          onSuccess={(email, mode) => {
+            // verifyOtp 成功后关闭弹窗
+            // store 的 onAuthStateChange 会自动处理账号切换/绑定/找回逻辑
+            if (mode !== 'switch') {
+              setBindSentEmail(email);
+            }
             setShowBindModal(false);
           }}
         />

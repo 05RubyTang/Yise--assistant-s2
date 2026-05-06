@@ -17,6 +17,7 @@ export const PLANS = [
     shinies: ['治愈兔', '火红尾', '柴渣虫'],
     unlockA: '活动赠送',
     unlockB: '活动赠送',
+    highValue: true,   // S级：两果实均活动赠送，成本最低
   },
   {
     id: 'ice',
@@ -31,6 +32,7 @@ export const PLANS = [
     shinies: ['大耳帽兜', '呼呼猪', '月牙雪熊'],
     unlockA: '抓/进化20只对应精灵',
     unlockB: '集齐 120 只风眠省精灵图鉴（星霜崖地西侧破旧船旁）',
+    highValue: true,   // S级：月牙雪熊赛季精灵同池，一方案刷双目标
   },
   {
     id: 'electric',
@@ -45,6 +47,7 @@ export const PLANS = [
     shinies: ['拉特', '粉粉星', '双灯鱼'],
     unlockA: '抓/进化20只对应精灵',
     unlockB: '抓/进化20只对应精灵',
+    highValue: true,   // S级：拉特+双灯鱼+粉粉星三精灵同池
     // 小星光果实可解锁「月光能量星光狮」特殊形态
     specialFormSanctuary: {
       sanctuary: '聆风塔地底护所',
@@ -67,6 +70,7 @@ export const PLANS = [
     unlockA: '抓/进化20只怖哭菇',
     unlockB: '集齐 60 只风眠省精灵图鉴（旧飞艇航道下方丰裕谷入口旁）',
     phantomNote: '4.23后仪使者(地+幻)只计地系池，幻系方案只用哭哭菇单系循环',
+    highValue: true,   // S级：粉星仔+粉粉星+月牙雪熊三赛季精灵同池
   },
   {
     id: 'grass',
@@ -81,6 +85,7 @@ export const PLANS = [
     shinies: ['格兰种子', '奇丽草', '柴渣虫'],
     unlockA: '抓/进化20只对应精灵',
     unlockB: '抓/进化20只对应精灵',
+    highValue: true,   // S级：两果实均易获取，且可顺带柴渣虫
   },
   {
     id: 'evil',
@@ -103,12 +108,12 @@ export const PLANS = [
     iconImg: `${base}attrs/ghost.png`,
     color: '#7E57C2',
     fruitA: '小灵面果实',
-    fruitB: '墨鱿士果实',
+    fruitB: '梦游果实',    // 梦悠悠果实，幽系精灵，计入幽系池
     spiritA: '小灵面',
-    spiritB: '墨鱿士',
+    spiritB: '梦悠悠',
     shinies: ['空空颅'],
     unlockA: '抓/进化20只幽冥眼',
-    unlockB: '集齐 80 只洛克里安精灵图鉴（圣所前哨东南侧）',
+    unlockB: '抓/进化20只梦悠悠/幽冥眼',
   },
   {
     id: 'mech',
@@ -120,7 +125,7 @@ export const PLANS = [
     fruitB: null,           // 机械系单放最优，无 fruitB
     spiritA: '机械方方',
     spiritB: null,
-    shinies: ['机械方方', '贝瑟'],
+    shinies: ['机械方方', '贝瑟'],  // 圣剑侍从无异色，已移除
     unlockA: '集齐 80 只洛克里安精灵图鉴（拾荒港口东南角）',
     unlockB: null,
   },
@@ -131,9 +136,9 @@ export const PLANS = [
     iconImg: `${base}attrs/light.png`,
     color: '#FFB300',
     fruitA: '独角兽果实',
-    fruitB: '犀角鸟果实',  // 备选：绒绒果实
+    fruitB: '犀角鸟果实',
     spiritA: '独角兽',
-    spiritB: '犀角鸟',     // 备选：绒绒
+    spiritB: '犀角鸟',
     shinies: ['疾光千兽', '绒仙子'],
     unlockA: '抓/进化20只对应精灵',
     unlockB: '抓/进化20只对应精灵',
@@ -285,48 +290,407 @@ export const PLANS = [
     sanctuaryTip: '陆地+水域交界处；适合与双灯鱼同放（一陆一水）',
     coFruit: '双灯鱼果实',
   },
+
+  // ─── 普通异色单刷方案（单刷对应精灵自身果实，进家族池） ──────────────────────
+  // 解锁方式：抓/进化20只对应精灵，向NPC兑换对应果实
+  // 优点：100%集中家族池，出货稳定；缺点：需要单独解锁每只精灵的果实
+  {
+    id: 'single_healingrabbit',
+    type: '治愈兔',
+    icon: '🔥',
+    iconImg: `${base}attrs/fire.png`,
+    color: '#E8733A',
+    fruitA: '治愈兔果实',
+    fruitB: null,
+    spiritA: '治愈兔',
+    spiritB: null,
+    shinies: ['治愈兔'],
+    unlockA: '活动赠送',
+    unlockB: null,
+    singleSpirit: true,
+  },
+  {
+    id: 'single_firetail',
+    type: '火红尾',
+    icon: '🔥',
+    iconImg: `${base}attrs/fire.png`,
+    color: '#E8733A',
+    fruitA: '火红尾果实',
+    fruitB: null,
+    spiritA: '火红尾',
+    spiritB: null,
+    shinies: ['火红尾'],
+    unlockA: '活动赠送',
+    unlockB: null,
+    singleSpirit: true,
+  },
+  {
+    id: 'single_snortpig',
+    type: '呼呼猪',
+    icon: '❄️',
+    iconImg: `${base}attrs/ice.png`,
+    color: '#42A5F5',
+    fruitA: '呼呼猪果实',
+    fruitB: null,
+    spiritA: '呼呼猪',
+    spiritB: null,
+    shinies: ['呼呼猪'],
+    unlockA: '抓/进化20只对应精灵',
+    unlockB: null,
+    singleSpirit: true,
+  },
+  {
+    id: 'single_bigearhat',
+    type: '大耳帽兜',
+    icon: '❄️',
+    iconImg: `${base}attrs/ice.png`,
+    color: '#42A5F5',
+    fruitA: '大耳帽兜果实',
+    fruitB: null,
+    spiritA: '大耳帽兜',
+    spiritB: null,
+    shinies: ['大耳帽兜'],
+    unlockA: '集齐 120 只风眠省精灵图鉴（星霜崖地西侧破旧船旁）',
+    unlockB: null,
+    singleSpirit: true,
+  },
+  {
+    id: 'single_ratt',
+    type: '拉特',
+    icon: '⚡',
+    iconImg: `${base}attrs/electric.png`,
+    color: '#FDD835',
+    fruitA: '拉特果实',
+    fruitB: null,
+    spiritA: '拉特',
+    spiritB: null,
+    shinies: ['拉特'],
+    unlockA: '抓/进化20只对应精灵',
+    unlockB: null,
+    singleSpirit: true,
+  },
+  {
+    id: 'single_granlseed',
+    type: '格兰种子',
+    icon: '🌿',
+    iconImg: `${base}attrs/grass.png`,
+    color: '#66BB6A',
+    fruitA: '格兰种子果实',
+    fruitB: null,
+    spiritA: '格兰种子',
+    spiritB: null,
+    shinies: ['格兰种子'],
+    unlockA: '抓/进化20只对应精灵',
+    unlockB: null,
+    singleSpirit: true,
+  },
+  {
+    id: 'single_beautygrass',
+    type: '奇丽草',
+    icon: '🌿',
+    iconImg: `${base}attrs/grass.png`,
+    color: '#66BB6A',
+    fruitA: '奇丽草果实',
+    fruitB: null,
+    spiritA: '奇丽草',
+    spiritB: null,
+    shinies: ['奇丽草'],
+    unlockA: '抓/进化20只对应精灵',
+    unlockB: null,
+    singleSpirit: true,
+  },
+  {
+    id: 'single_demonwolf',
+    type: '恶魔狼',
+    icon: '😈',
+    iconImg: `${base}attrs/evil.png`,
+    color: '#5D4037',
+    fruitA: '恶魔狼果实',
+    fruitB: null,
+    spiritA: '恶魔狼',
+    spiritB: null,
+    shinies: ['恶魔狼'],
+    unlockA: '抓/进化20只恶魔狼/幽朔夜伊芙',
+    unlockB: null,
+    singleSpirit: true,
+  },
+  {
+    id: 'single_mechbox',
+    type: '机械方方',
+    icon: '⚙️',
+    iconImg: `${base}attrs/mech.png`,
+    color: '#78909C',
+    fruitA: '机械方方果实',
+    fruitB: null,
+    spiritA: '机械方方',
+    spiritB: null,
+    shinies: ['机械方方'],
+    unlockA: '集齐 80 只洛克里安精灵图鉴（拾荒港口东南角）',
+    unlockB: null,
+    singleSpirit: true,
+  },
+  {
+    id: 'single_swiftbeast',
+    type: '疾光千兽',
+    icon: '✨',
+    iconImg: `${base}attrs/light.png`,
+    color: '#FFB300',
+    fruitA: '犀角鸟果实',   // 疾光千兽与犀角鸟同家族，使用犀角鸟果实刷取
+    fruitB: null,
+    spiritA: '疾光千兽',
+    spiritB: null,
+    shinies: ['疾光千兽'],
+    unlockA: '购买战令礼包',
+    unlockB: null,
+    singleSpirit: true,
+  },
+  {
+    id: 'single_fluffyfairy',
+    type: '绒仙子',
+    icon: '✨',
+    iconImg: `${base}attrs/light.png`,
+    color: '#FFB300',
+    fruitA: '绒绒果实',   // 绒仙子与绒绒同家族，使用绒绒果实刷取
+    fruitB: null,
+    spiritA: '绒仙子',
+    spiritB: null,
+    shinies: ['绒仙子'],
+    unlockA: '购买战令礼包',
+    unlockB: null,
+    singleSpirit: true,
+  },
+  // ─── 积累属系池方案（目标精灵本身无异色，但使用其果实可稳定积累对应属系池权重） ──
+  // attrId 指向父属系方案 → 将在对应属系二级页展示，不在方案列表单独显示
+  {
+    id: 'fire_ape',
+    type: '火焰猿+尖嘴狐仙',
+    icon: '🔥',
+    iconImg: `${base}attrs/fire.png`,
+    color: '#E8733A',
+    fruitA: '火焰猿果实',
+    fruitB: '尖嘴狐仙果实',
+    spiritA: '火焰猿',
+    spiritB: '尖嘴狐仙',
+    shinies: [],          // 火焰猿/尖嘴狐仙均无异色（仅污染形态），用于积累火系池
+    unlockA: '抓/进化20只对应精灵',
+    unlockB: '抓/进化20只对应精灵',
+    noShiny: true,
+    attrId: 'fire',       // 嵌入「火系」二级页
+    highValue: true,      // 火系果实易获取，性价比高
+    poolShinies: ['治愈兔', '火红尾', '柴渣虫'],  // 火系池可产出的异色精灵
+  },
+  {
+    id: 'grass_bungaflower',
+    type: '蹦蹦花',
+    icon: '🌿',
+    iconImg: `${base}attrs/grass.png`,
+    color: '#66BB6A',
+    fruitA: '蹦蹦花果实',
+    fruitB: null,
+    spiritA: '蹦蹦花',
+    spiritB: null,
+    shinies: [],          // 蹦蹦花无异色，用于积累草系池
+    unlockA: '抓/进化20只对应精灵',
+    unlockB: null,
+    noShiny: true,
+    attrId: 'grass',      // 嵌入「草系」二级页
+    highValue: true,      // 草系果实易获取，性价比高
+    poolShinies: ['格兰种子', '奇丽草', '柴渣虫'],  // 草系池可产出的异色精灵
+  },
+  {
+    id: 'mech_bodoxi',
+    type: '波多西+圣剑侍从',
+    icon: '⚙️',
+    iconImg: `${base}attrs/mech.png`,
+    color: '#78909C',
+    fruitA: '波多西果实',
+    fruitB: '圣剑侍从果实',
+    spiritA: '波多西',
+    spiritB: '圣剑侍从',
+    shinies: [],          // 波多西/圣剑侍从均无异色（仅污染形态），用于积累机械系池
+    unlockA: '抓/进化20只对应精灵',
+    unlockB: '集齐 80 只洛克里安精灵图鉴（拾荒港口东南角）',
+    noShiny: true,
+    attrId: 'mech',       // 嵌入「机械系」二级页
+    highValue: true,      // 机械系池价值高（可出机械方方/贝瑟），性价比高
+    poolShinies: ['机械方方', '贝瑟'],  // 机械系池可产出的异色精灵
+  },
+  {
+    id: 'water_deepwhale',
+    type: '水系',
+    icon: '💧',
+    iconImg: `${base}attrs/water.png`,
+    color: '#1565C0',
+    fruitA: '深蓝鲸果实',
+    fruitB: null,
+    spiritA: '深蓝鲸',
+    spiritB: null,
+    shinies: [],          // 深蓝鲸无异色，用于积累水系池
+    unlockA: '集齐 100 只洛克里安精灵图鉴（拾荒港口找智慧树苗）',
+    unlockB: null,
+    noShiny: true,
+    // 水系池可产出：第二属性含水系的异色精灵
+    poolShinies: ['双灯鱼'],
+  },
+  {
+    id: 'cute_chrysanthemumpear',
+    type: '萌系',
+    icon: '🌸',
+    iconImg: `${base}attrs/cute.png`,
+    color: '#E91E8C',
+    fruitA: '菊花梨果实',
+    fruitB: null,
+    spiritA: '菊花梨',
+    spiritB: null,
+    shinies: [],          // 菊花梨无异色，用于积累萌系池
+    unlockA: '抓/进化20只对应精灵',
+    unlockB: null,
+    noShiny: true,
+    // 萌系池可产出：属性含萌系的异色精灵
+    poolShinies: ['大耳帽兜', '治愈兔'],
+  },
+  {
+    id: 'light_miniunicorn',
+    type: '小独角兽',
+    icon: '✨',
+    iconImg: `${base}attrs/light.png`,
+    color: '#FFB300',
+    fruitA: '小独角兽果实',
+    fruitB: null,
+    spiritA: '小独角兽',
+    spiritB: null,
+    shinies: [],          // 小独角兽无异色，用于积累光系池
+    unlockA: '抓/进化20只对应精灵',
+    unlockB: null,
+    noShiny: true,
+    attrId: 'light',      // 嵌入「光系」二级页
+    highValue: true,      // 光系池价值高（可出疾光千兽/绒仙子/嗜光嗡嗡），性价比高
+    poolShinies: ['疾光千兽', '绒仙子', '嗜光嗡嗡'],  // 光系池可间接产出的异色精灵
+  },
 ];
 
-// ─── 果冻 / 星辰虫关键词（仅计入世界池，不计保底） ─────────────────────────
-const JELLY_KEYWORDS = ['果冻', '星辰虫', '星尘虫'];
+// ─── 属性 ID 集合（用于判断是否属于"属性系"池子） ────────────────────────────
+const BASE_IDS = new Set([
+  'fire', 'ice', 'electric', 'phantom', 'grass', 'evil', 'ghost', 'mech', 'light',
+  'water', 'cute',
+]);
 
-/**
- * 判断某只精灵对应的池类型（相对于当前方案）
- *
- * @param {string} spiritName - 精灵名称
- * @param {object} plan       - 当前方案对象（含 spiritA、spiritB、attrId 等字段）
- * @returns {'family'|'attribute'|'world'|'jelly'}
- *   - 'family'    : 方案主精灵（spiritA / spiritB），进家族池
- *   - 'attribute' : 同属性其他精灵，进系别池
- *   - 'world'     : 其他属性精灵，进世界池
- *   - 'jelly'     : 果冻 / 星辰虫，仅进世界池，不计保底
- */
-export function classifySpiritPool(spiritName, plan) {
-  if (!spiritName || !plan) return 'world';
+// ─── 果实名 → 属系 ID 映射 ─────────────────────────────────────────────────
+export const FRUIT_ATTR = {
+  '治愈兔果实':    'fire',
+  '火红尾果实':    'fire',
+  '柴渣虫果实':    'fire',
+  '呼呼猪果实':    'ice',
+  '大耳帽兜果实':  'ice',
+  '月牙雪熊果实':  'ice',
+  '拉特果实':      'electric',
+  '小星光果实':    'electric',
+  '粉粉星果实':    'electric',
+  '双灯鱼果实':    'electric',
+  '哭哭菇果实':    'phantom',
+  '仪使者果实':    'phantom',
+  '粉星仔果实':    'phantom',
+  '格兰种子果实':  'grass',
+  '奇丽草果实':    'grass',
+  '小夜果实':      'evil',
+  '恶魔狼果实':    'evil',
+  '嗜光嗡嗡果实':  'evil',
+  '小灵面果实':    'ghost',
+  '梦游果实':      'ghost',
+  '空空颅果实':    'ghost',
+  '机械方方果实':  'mech',
+  '贝瑟果实':      'mech',
+  '圣剑侍从果实':  'mech',
+  '独角兽果实':    'light',
+  '犀角鸟果实':    'light',
+  '疾光千兽果实':  'light',
+  '绒绒果实':      'light',   // 绒仙子/疾光千兽家族（绒绒为进化前形态）
+  '绒仙子果实':    'light',   // 旧数据兜底
+  '火焰猿果实':    'fire',
+  '尖嘴狐仙果实':  'fire',
+  '蹦蹦花果实':    'grass',
+  '波多西果实':    'mech',
+  '圣剑侍从果实':  'mech',
+  '深蓝鲸果实':    'water',
+  '菊花梨果实':    'cute',
+  '小独角兽果实':  'light',
+};
 
-  // 果冻 / 星辰虫：匹配关键词
-  if (JELLY_KEYWORDS.some(kw => spiritName.includes(kw))) return 'jelly';
+// ─── 精灵名 → 属性1 ID 映射（4.23后双属精灵只按属性1计池） ──────────────────
+export const SPIRIT_ATTR1 = {
+  '治愈兔':   'fire',
+  '火红尾':   'fire',
+  '柴渣虫':   'fire',
+  '呼呼猪':   'ice',
+  '大耳帽兜': 'ice',
+  '月牙雪熊': 'ice',
+  '拉特':     'electric',
+  '小星光':   'electric',
+  '粉粉星':   'electric',
+  '双灯鱼':   'electric',
+  '哭哭菇':   'phantom',
+  '粉星仔':   'phantom',
+  '格兰种子': 'grass',
+  '奇丽草':   'grass',
+  '小夜':     'evil',
+  '恶魔狼':   'evil',
+  '嗜光嗡嗡': 'evil',
+  '小灵面':   'ghost',
+  '梦悠悠':   'ghost',
+  '空空颅':   'ghost',
+  '机械方方': 'mech',
+  '贝瑟':     'mech',
+  '圣剑侍从': 'mech',
+  '独角兽':   'light',
+  '犀角鸟':   'light',
+  '疾光千兽': 'light',
+  '绒仙子':   'light',
+  '绒绒':     'light',
+  '火焰猿':   'fire',
+  '尖嘴狐仙': 'fire',
+  '蹦蹦花':   'grass',
+  '波多西':   'mech',
+  '圣剑侍从': 'mech',
+  '深蓝鲸':   'water',
+  '菊花梨':   'cute',
+  '小独角兽': 'light',
+};
 
-  // 方案主精灵（家族池）
-  const familyNames = [plan.spiritA, plan.spiritB].filter(Boolean);
-  if (familyNames.includes(spiritName)) return 'family';
-
-  // 同属性精灵：通过 attrId 反查标准方案，取其所有 shinies
-  // 自定义方案有 attrId → 找到基础属性方案 → 取 shinies 作为系别池
-  // 标准属性方案直接用自身 shinies
-  const allPlans = PLANS;
-  const attrPlanId = plan.attrId || plan.id;   // 自定义方案 → attrId；标准方案 → 自身
-  const attrPlan = allPlans.find(p => p.id === attrPlanId);
-  if (attrPlan && Array.isArray(attrPlan.shinies) && attrPlan.shinies.includes(spiritName)) {
-    return 'attribute';
-  }
-
-  // 兜底：世界池
-  return 'world';
+// ─── 按属性 ID 获取所有异色精灵 ──────────────────────────────────────────────
+export function getShinisByAttr(attrId) {
+  const plan = PLANS.find(p => p.id === attrId);
+  return plan?.shinies || [];
 }
 
-// 所有可产出的异色精灵（去重）
-export const ALL_SHINIES = [...new Set(PLANS.flatMap(p => p.shinies))];
+// ─── 根据精灵名找到所有关联方案 ──────────────────────────────────────────────
+export function findPlansForSpirit(spiritName) {
+  return PLANS.filter(p =>
+    (p.shinies && p.shinies.includes(spiritName)) ||
+    (p.poolShinies && p.poolShinies.includes(spiritName)) ||
+    p.spiritA === spiritName ||
+    p.spiritB === spiritName
+  );
+}
+
+// ─── 所有赛季奇遇精灵（season: true 的方案的 shinies） ────────────────────────
+export const SEASON_SHINIES = PLANS
+  .filter(p => p.season)
+  .flatMap(p => p.shinies)
+  .filter((v, i, a) => a.indexOf(v) === i);
+
+// ─── 所有属性异色精灵（属性池方案的 shinies，去重） ──────────────────────────
+export const ATTR_SHINIES = PLANS
+  .filter(p => !p.season && BASE_IDS.has(p.id) && p.shinies?.length > 0)
+  .flatMap(p => p.shinies)
+  .filter((v, i, a) => a.indexOf(v) === i && !SEASON_SHINIES.includes(v));
+
+// ─── 所有可产出异色精灵（去重，含 noShiny 辅助方案） ──────────────────────────
+export const ALL_SHINIES = [...new Set(PLANS.flatMap(p => p.shinies))].filter(Boolean);
+
+// ─── 通过果实名查询属系 ID ────────────────────────────────────────────────────
+export function getFruitAttr(fruitName) {
+  return FRUIT_ATTR[fruitName] || null;
+}
 
 // ─── 三池出货识别工具 ─────────────────────────────────────────────────────────
 
@@ -354,34 +718,27 @@ export function fuzzyMatch(a, b) {
   return missing <= maxMiss;
 }
 
-/**
- * 用模糊匹配在 SPIRIT_ATTR1 里查找精灵的第一属性 id
- * 直接用 SPIRIT_ATTR1 权威数据，精灵名容错
- */
+/** 用模糊匹配在 SPIRIT_ATTR1 里查找精灵的第一属性 id */
 function lookupAttr(spiritName) {
   if (!spiritName) return null;
   const nq = normalize(spiritName);
-  // 先精确匹配（去规范化）
   for (const [k, v] of Object.entries(SPIRIT_ATTR1)) {
     if (normalize(k) === nq) return v;
   }
-  // 再模糊匹配
   for (const [k, v] of Object.entries(SPIRIT_ATTR1)) {
     if (fuzzyMatch(k, spiritName)) return v;
   }
   return null;
 }
 
-/**
- * 从方案对象中推断属性 id：
- *   - 标准属性方案：id 直接是属性 id
- *   - 赛季方案：从 iconImg 或 attrId 字段取
- */
+/** 从方案对象中推断属性 id */
 function getPlanAttrId(plan) {
   if (!plan) return null;
-  const BASE_IDS = new Set(['fire', 'ice', 'electric', 'phantom', 'grass', 'evil', 'ghost', 'mech', 'light']);
-  if (BASE_IDS.has(plan.id)) return plan.id;
-  if (plan.attrId && BASE_IDS.has(plan.attrId)) return plan.attrId;
+  const ALL_BASE = new Set([
+    'fire','ice','electric','phantom','grass','evil','ghost','mech','light','water','cute'
+  ]);
+  if (ALL_BASE.has(plan.id)) return plan.id;
+  if (plan.attrId && ALL_BASE.has(plan.attrId)) return plan.attrId;
   const m = (plan.iconImg || '').match(/attrs\/(\w+)\.png/);
   return m ? m[1] : null;
 }
@@ -404,14 +761,10 @@ export function classifyResultType(resultSpirit, plan) {
 
 /**
  * 兼容旧数据：从 task + plan 推断池子类型
- *   - 新数据（family/attr/world）：直接用
- *   - 旧数据（pool/offpool）：尝试用 resultSpirit + plan 重新判断
- *   - 无法判断：pool→family，offpool→world
  */
 export function inferPoolType(task, plan) {
   if (!task) return 'world';
   if (['family', 'attr', 'world'].includes(task.resultType)) return task.resultType;
-  // 旧数据：尝试重新推断
   if (task.resultSpirit && plan) {
     return classifyResultType(task.resultSpirit, plan);
   }
@@ -429,117 +782,54 @@ export const POOL_TYPE_CONFIG = {
   offpool: { label: '歪池出货',  bg: '#7E57C2', color: '#fff',    tagBg: '#F5E8FF', tagColor: '#8B4BB8', tagBorder: 'rgba(139,75,184,0.3)' },
 };
 
-// ─── 精灵第一属性表（用于「攒系别池」方案的可出异色判断） ────────────────────
-// 来源：异色规则文档 + 游戏内精灵属性
-// 第一属性 = 4.23后计入系别池的属性
-export const SPIRIT_ATTR1 = {
-  // 火系
-  '治愈兔':   'fire',
-  '火红尾':   'fire',
-  '柴渣虫':   'fire',   // 火+草，属性1：火系（燃薪虫为其进化异色形态，前端统一用「柴渣虫」作 key）
-  // 冰系
-  '大耳帽兜': 'ice',
-  '呼呼猪':   'ice',
-  '月牙雪熊': 'ice',    // 冰+幻，属性1：冰系（但可被幻系属性池出货）
-  // 电系
-  '拉特':     'electric',
-  '粉粉星':   'electric', // 电+幻，属性1：电系（但可被幻系属性池出货）
-  '双灯鱼':   'electric', // 电+水，属性1：电系
-  // 幻系
-  '粉星仔':   'phantom',
-  '哭哭菇':   'phantom',  // 单幻系
-  // 草系（注意：柴渣虫第2属性是草，可被草系属性池出货，但单刷柴渣虫只计火系池）
-  '格兰种子': 'grass',
-  '奇丽草':   'grass',
-  // 恶系
-  '小夜':     'evil',
-  '恶魔狼':   'evil',
-  '嗜光嗡嗡': 'evil',   // 恶+光，属性1：恶系
-  // 幽系
-  '小灵面':   'ghost',
-  '空空颅':   'ghost',  // 单幽系
-  // 机械系
-  '机械方方': 'mech',
-  '贝瑟':     'mech',   // 机械+火，属性1：机械系
-  // 光系
-  '独角兽':   'light',
-  '疾光千兽': 'light',
-  '绒仙子':   'light',
-};
-
-// 根据属性 id 返回所有「第一属性等于该属性」的可出异色精灵
-export function getShinisByAttr(attrId) {
-  return ALL_SHINIES.filter(name => SPIRIT_ATTR1[name] === attrId);
-}
-
-// 赛季奇遇方案的专属精灵（season:true 方案的 shinies，去重）
-export const SEASON_SHINIES = [...new Set(
-  PLANS.filter(p => p.season).flatMap(p => p.shinies)
-)];
-
-// 属性方案的精灵（非赛季方案，去重），排除已在赛季奇遇 tab 展示的精灵，避免重复
-const _seasonSet = new Set(SEASON_SHINIES);
-export const ATTR_SHINIES = [...new Set(
-  PLANS.filter(p => !p.season).flatMap(p => p.shinies)
-)].filter(name => !_seasonSet.has(name));
-
-// 根据精灵名查找所有包含该精灵的方案
-export function findPlansForSpirit(name) {
-  return PLANS.filter(p => p.shinies.includes(name));
-}
-
-// ─── 特殊形态庇护所攻略 ───────────────────────────────────────────────────────
-// 来源：五、特殊形态庇护所攻略
-// 需要将精灵的橡果形态放入指定底护所以解锁隐藏形态
+// ─── 特殊形态数据 ─────────────────────────────────────────────────────────────
 export const SPECIAL_FORMS = [
   {
-    spirit: '小星光',
-    baseSpirit: '星光狮',          // 普通形态（有插图）
-    hiddenForm: '月光能量星光狮',
-    fruitImg: '星光狮果实',         // public/fruits/ 中的文件名（不含.png）
-    acornDesc: '小星光的果实形态（黄色星形图案）',
-    sanctuary: '聆风塔地底护所',
     planIds: ['electric'],
+    spirit: '小星光',
+    fruitImg: '小星光果实',
+    hiddenForm: '月光能量星光狮',
+    sanctuary: '聆风塔地底护所',
+    acornDesc: '小星光的橡果形态（黄色星形图案）',
   },
   {
     spirit: '小狮鹫',
-    baseSpirit: '皇家狮鹫（崖间地）', // 普通形态（有插图）
+    fruitImg: '小狮鹫果实',
     hiddenForm: '高山地皇家狮鹫',
-    fruitImg: '皇家狮鹫果实',
-    acornDesc: '高山地样子的果实形态（绿色山形图案）',
     sanctuary: '学院驻地底护所',
+    acornDesc: '高山地样子的果实形态（绿色山形图案）',
     planIds: [],
   },
   {
     spirit: '地鼠',
-    hiddenForm: '储水期地鼠',
     fruitImg: '地鼠果实',
-    acornDesc: '储水时样子的果实形态（黄色水滴/心形图案）',
+    hiddenForm: '储水期地鼠',
     sanctuary: '德雷克福德庄园底护所',
+    acornDesc: '储水时样子的果实形态（黄色水滴/心形图案）',
     planIds: [],
   },
   {
     spirit: '蹦蹦种子',
+    fruitImg: '蹦蹦种子果实',
     hiddenForm: '短毛球形态',
-    fruitImg: '蹦蹦种子果实',
-    acornDesc: '短毛球果实（绿色带黑斑足球纹）',
     sanctuary: '独角兽领地底护所',
+    acornDesc: '短毛球果实（绿色带黑斑足球纹）',
     planIds: [],
   },
   {
     spirit: '蹦蹦种子',
+    fruitImg: '蹦蹦种子果实',
     hiddenForm: '象牙球形态',
-    fruitImg: '蹦蹦种子果实',
-    acornDesc: '象牙球果实（绿色带白花足球纹）',
     sanctuary: '采邑地底护所',
+    acornDesc: '象牙球果实（绿色带白花足球纹）',
     planIds: [],
   },
   {
     spirit: '蹦蹦种子',
-    hiddenForm: '彩玉球形态',
     fruitImg: '蹦蹦种子果实',
-    acornDesc: '彩玉球果实（绿色带紫花足球纹）',
+    hiddenForm: '彩玉球形态',
     sanctuary: '挽风屏障底护所',
+    acornDesc: '彩玉球果实（绿色带紫花足球纹）',
     planIds: [],
   },
 ];

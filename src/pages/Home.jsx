@@ -132,43 +132,88 @@ export default function Home({ navigate }) {
       {/* 新加入的伙伴（有数据才展示） */}
       {hasRecentShinies && (
         <div className="animate-in" style={{
-          margin: '0 16px 12px', padding: '14px 14px 12px',
-          backgroundImage: `url(${import.meta.env.BASE_URL}home-card-bg.png)`,
-          backgroundSize: '115%',
-          backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat',
+          margin: '0 16px 16px',
+          position: 'relative',
+          // 用 filter drop-shadow 代替 box-shadow，配合 SVG 异形卡片
+          filter: 'drop-shadow(1px 6px 1px rgba(147,143,139,0.9))',
         }}>
-          <div style={{
-            fontSize: 20, fontWeight: 800, color: '#2B2A2E',
-            marginBottom: 12, letterSpacing: 0.5,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          }}>
-            <img
-              src={`${import.meta.env.BASE_URL}dimo-bg.png`}
-              alt=""
-              aria-hidden="true"
-              style={{
-                width: 28, height: 28, objectFit: 'contain',
-                filter: 'brightness(0)',
-                opacity: 0.85,
-                flexShrink: 0,
-                alignSelf: 'center',
-              }}
-            />
-            最新加入的伙伴
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {recentShinies.map(t => (
-              <RecentSpiritCard key={t.id} task={t} />
-            ))}
+          {/* SVG 卡片底板（异形：大圆角矩形 减去 3个椭圆弧） */}
+          <svg
+            aria-hidden="true"
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible' }}
+            preserveAspectRatio="none"
+            viewBox="0 0 320 180"
+          >
+            <defs>
+              {/* 主圆角矩形 */}
+              <clipPath id="cardClip">
+                <rect x="0" y="0" width="320" height="180" rx="16" ry="16"/>
+              </clipPath>
+            </defs>
+            {/* 主卡片填色 */}
+            <rect x="0" y="0" width="320" height="180" rx="16" ry="16" fill="#FCF7EB"/>
+            {/* 卡片描边 */}
+            <rect x="1" y="1" width="318" height="178" rx="15.5" ry="15.5" fill="none" stroke="#726551" strokeWidth="2"/>
+
+            {/* 星形装饰 49（右上大星，圆角 11px）*/}
+            <path d="M258,18 L261,28 L272,28 L264,34 L267,44 L258,38 L249,44 L252,34 L244,28 L255,28 Z"
+              fill="none" stroke="#F5ECE5" strokeWidth="4" strokeLinejoin="round"/>
+            {/* 星形装饰 50（左下中星，圆角 11px）*/}
+            <path d="M52,148 L54.5,155 L62,155 L56,159.5 L58.5,167 L52,162.5 L45.5,167 L48,159.5 L42,155 L49.5,155 Z"
+              fill="none" stroke="#F5ECE5" strokeWidth="4" strokeLinejoin="round"/>
+            {/* 星形装饰 51（右下小星，圆角 4px）*/}
+            <path d="M284,148 L285.5,153 L291,153 L286.5,156.5 L288,162 L284,159 L280,162 L281.5,156.5 L277,153 L282.5,153 Z"
+              fill="none" stroke="#F5ECE5" strokeWidth="2.5" strokeLinejoin="round"/>
+          </svg>
+
+          {/* 内容层 */}
+          <div style={{ position: 'relative', zIndex: 1, padding: '14px 14px 16px' }}>
+            <div style={{
+              fontSize: 16, fontWeight: 900, color: '#2B2A2E',
+              marginBottom: 10, letterSpacing: 0.5,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              fontFamily: 'var(--font-display)',
+            }}>
+              <img
+                src={`${import.meta.env.BASE_URL}dimo-bg.png`}
+                alt="" aria-hidden="true"
+                style={{ width: 22, height: 22, objectFit: 'contain', filter: 'brightness(0)', opacity: 0.75, flexShrink: 0 }}
+              />
+              最新加入的伙伴
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {recentShinies.map(t => (
+                <RecentSpiritCard key={t.id} task={t} />
+              ))}
+            </div>
           </div>
         </div>
       )}
 
       {/* 进行中任务标题 */}
       {tasks.length > 0 && (
-        <div style={{ margin: '4px 16px 6px', fontSize: 11, color: 'var(--text-light)', fontWeight: 700, letterSpacing: 1 }}>
-          ▶ 进行中的刷取
+        <div style={{
+          position: 'relative',
+          margin: '4px 16px 8px',
+          height: 40,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <img
+            src={`${import.meta.env.BASE_URL}section-title-banner.png`}
+            alt=""
+            style={{
+              position: 'absolute', inset: 0,
+              width: '100%', height: '100%',
+              objectFit: 'fill',
+              pointerEvents: 'none',
+            }}
+          />
+          <span style={{
+            position: 'relative', zIndex: 1,
+            fontSize: 14, fontWeight: 900,
+            color: '#FBC839', fontFamily: 'var(--font-display)',
+            letterSpacing: 2,
+          }}>进行中的刷取</span>
         </div>
       )}
 
@@ -238,10 +283,25 @@ export default function Home({ navigate }) {
 
       {/* 开始新刷取 */}
       <button
-        className="btn btn-gold animate-in"
+        className="animate-in"
         onClick={() => navigate('planPicker')}
+        style={{
+          display: 'block',
+          background: 'none', border: 'none', padding: '0',
+          width: '100%', cursor: 'pointer',
+          transition: 'transform 0.15s',
+          textAlign: 'center',
+        }}
+        onMouseDown={e => e.currentTarget.style.transform = 'scale(0.97)'}
+        onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
+        onTouchStart={e => e.currentTarget.style.transform = 'scale(0.97)'}
+        onTouchEnd={e => e.currentTarget.style.transform = 'scale(1)'}
       >
-        {tasks.length > 0 ? '+ 开始新的刷取' : '✨ 开始刷取异色精灵'}
+        <img
+          src={`${import.meta.env.BASE_URL}btn-start.png`}
+          alt="开始新的刷取"
+          style={{ width: 200, height: 'auto', display: 'inline-block' }}
+        />
       </button>
 
       {tasks.length === 0 && (

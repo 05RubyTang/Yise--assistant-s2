@@ -43,8 +43,8 @@
   --divider:     rgba(103, 93, 83, 0.12);
 
   /* ---- 圆角 ---- */
-  --radius:      14px;
-  --radius-sm:   10px;
+  --radius:      12px;
+  --radius-sm:   9px;
   --radius-xs:   6px;
 
   /* ---- 阴影 ---- */
@@ -86,10 +86,36 @@ body {
   /* bg set via inline style in App.jsx */
 }
 
+/* 桌面端背景装饰光晕 */
+.mockup-wrapper::before,
+.mockup-wrapper::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+}
+.mockup-wrapper::before {
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(251,200,57,0.35) 0%, transparent 70%);
+  top: -100px;
+  left: -80px;
+}
+.mockup-wrapper::after {
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(251,200,57,0.20) 0%, transparent 70%);
+  bottom: -60px;
+  right: -60px;
+}
+
 .mockup-phone {
   position: relative;
+  z-index: 1;
+  /* 宽度固定 390px，高度自适应视口，最大 844px */
   width: 390px;
-  height: 844px;
+  height: min(844px, calc(100vh - 48px));
   border-radius: 52px;
   background: linear-gradient(150deg, #3D3C40, #22212A);
   padding: 14px 12px 12px;
@@ -98,9 +124,11 @@ body {
     0 0 0 1px rgba(255,255,255,0.08),
     inset 0 1px 0 rgba(255,255,255,0.14);
   overflow: hidden;
+  /* 视口较矮时等比例缩小整个手机壳 */
+  transform-origin: center center;
 }
 
-/* 移除刘海屏 ::before 伪元素，改为右侧摄像头小点 */
+/* 右侧摄像头小点 */
 .mockup-phone::before {
   content: '';
   position: absolute;
@@ -114,16 +142,54 @@ body {
   box-shadow: -16px 0 0 #2C2B34;
 }
 
+/* 左侧静音键 */
+.mockup-phone::after {
+  content: '';
+  position: absolute;
+  top: 120px;
+  left: -3px;
+  width: 3px;
+  height: 60px;
+  background: linear-gradient(180deg, #4A4950, #35343A);
+  border-radius: 2px 0 0 2px;
+  box-shadow: 0 -36px 0 3px #35343A, 0 36px 0 3px #35343A;
+  z-index: 10;
+}
+
 .mockup-screen {
   width: 100%;
   height: 100%;
   border-radius: 40px;
-  /* overflow 移至 .mockup-phone，让弹窗可以 absolute inset:0 撑满 screen */
-  overflow: visible;
-  background: var(--bg);
+  /* transform 使其成为内部 position:fixed 元素的包含块，
+     从而把弹窗约束在样机壳范围内；overflow:hidden 再做裁剪。
+     ⚠️ 仅桌面端有此元素，不影响移动端。 */
+  overflow: hidden;
+  transform: translateZ(0);
+  background-color: var(--bg);
+  background-image: url('/home-page-bg.png');
+  background-size: 100% auto;
+  background-position: top center;
+  background-repeat: no-repeat;
   display: flex;
   flex-direction: column;
   position: relative;
+}
+
+/* 视口高度不足时等比缩放手机壳 */
+@media (max-height: 900px) {
+  .mockup-phone {
+    transform: scale(0.92);
+  }
+}
+@media (max-height: 780px) {
+  .mockup-phone {
+    transform: scale(0.82);
+  }
+}
+@media (max-height: 660px) {
+  .mockup-phone {
+    transform: scale(0.70);
+  }
 }
 
 /* ---- 移动端：全屏 ---- */
@@ -484,6 +550,26 @@ body {
   box-shadow: 0 -6px 32px rgba(43,42,46,0.18);
 }
 .modal-content::-webkit-scrollbar { display: none; }
+
+/* 固定高度弹窗（外框不滚动，内容区独立滚动）*/
+.modal-content--fixed {
+  height: 66.67vh;
+  max-height: 66.67vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+/* 弹窗内可滚动的内容区（配合 modal-content--fixed 使用）*/
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 16px 28px;
+}
+.modal-body::-webkit-scrollbar { display: none; }
 
 /* 拖拽把手 */
 .modal-handle {
@@ -919,7 +1005,7 @@ body {
 }
 
 .active-task-card {
-  background: #FFF9E0;
+  background: #ffffff;
   border-color: #C8A020;
   box-shadow: 0 2px 0 #C8A020;
 }
@@ -1702,7 +1788,7 @@ body {
 .section-title {
   font-size: 12px;
   font-weight: 800;
-  color: var(--text-light);
+  color: #675D53;
   letter-spacing: 1px;
   text-transform: uppercase;
   margin-bottom: 12px;

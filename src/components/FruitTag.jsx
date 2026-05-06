@@ -9,8 +9,10 @@ import { getWikiFruitImg } from '../data/fruits-wiki';
 const base = import.meta.env.BASE_URL;
 
 function FruitImg({ name, size }) {
-  const localSrc = `${base}fruits/${encodeURIComponent(name)}.png`;
-  const wikiSrc = getWikiFruitImg(name);
+  const localSrc = `${base}fruits/${encodeURIComponent(name)}.png?v=3`;
+  const rawWikiSrc = getWikiFruitImg(name);
+  // v=3 用于破除浏览器对旧 wiki CDN URL 的缓存（果实图标 URL 有过变更）
+  const wikiSrc = rawWikiSrc ? `${rawWikiSrc}?v=3` : null;
   const [src, setSrc] = useState(localSrc);
   const [triedWiki, setTriedWiki] = useState(false);
 

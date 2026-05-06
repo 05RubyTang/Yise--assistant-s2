@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "deploy:test": "VITE_BASE_PATH=/Luoke-yise-test/ npm run build && gh-pages -d dist -r https://github.com/05RubyTang/Luoke-yise-test.git",
     "deploy:prod": "VITE_BASE_PATH=/yise-Luoke-v2.0-ruby-s/ npm run build && gh-pages -d dist -r https://github.com/05RubyTang/yise-Luoke-v2.0-ruby-s.git",
-    "deploy:main": "VITE_BASE_PATH=/LuoKe-Shuayise/ npm run build && gh-pages -d dist -r https://github.com/05RubyTang/LuoKe-Shuayise.git"
+    "deploy:main": "VITE_BASE_PATH=/LuoKe-Shuayise/ npm run build && gh-pages -d dist -r https://github.com/05RubyTang/LuoKe-Shuayise.git",
+    "build:vercel": "VITE_BASE_PATH=/ npm run build"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.1",

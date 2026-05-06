@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../store';
+
+const base = import.meta.env.BASE_URL;
 import { PLANS, getShinisByAttr } from '../data/plans';
 import PlanCard from '../components/PlanCard';
 import PlanIcon from '../components/PlanIcon';
@@ -114,17 +116,27 @@ function AttrPlanCard({ plan, userPlans, spirits, completedTasks, activeTasks, o
   const status = getPlanStatus(plan, spirits, activeTasks);
   const avgInfo = calcAttrAvgBreaks(plan.id, userPlans, completedTasks);
   const myUserPlans = (userPlans || []).filter(p => p.attrId === plan.id);
-  const totalPlanCount = 1 + myUserPlans.length;
+  // 积累属系池辅助方案（noShiny && attrId 指向该属系）
+  const poolPlansForAttr = PLANS.filter(p => p.noShiny && p.attrId === plan.id);
+  const totalPlanCount = 1 + poolPlansForAttr.length + myUserPlans.length;
+  const isNoShiny = !!plan.noShiny; // 目标精灵无异色，用于积累属系池
 
-  const headerBg = status === 'active' ? '#C8830A' : allObtained ? '#4B9C46' : '#2B2A2E';
+  // noShiny 方案的「可产出异色」进度（用 poolShinies 替代 shinies）
+  const poolShinies = plan.poolShinies || [];
+  const poolObtainedCount = poolShinies.filter(n => spirits[n]?.obtained).length;
+  const poolAllObtained = poolShinies.length > 0 && poolObtainedCount === poolShinies.length;
+
+  // 有 poolShinies 的 noShiny 方案，用 pool 进度决定头部颜色
+  const effectiveAllObtained = isNoShiny ? poolAllObtained : allObtained;
+  const headerBg = status === 'active' ? '#C8830A' : effectiveAllObtained ? '#4B9C46' : '#2B2A2E';
 
   return (
     <div
       className="plan-card"
       onClick={onClick}
       style={{
-        borderColor: status === 'active' ? '#C8830A' : allObtained ? '#4B9C46' : '#675D53',
-        boxShadow: status === 'active' ? '0 2px 0 #C8830A' : allObtained ? '0 2px 0 #4B9C46' : '0 2px 0 #675D53',
+        borderColor: status === 'active' ? '#C8830A' : effectiveAllObtained ? '#4B9C46' : '#675D53',
+        boxShadow: status === 'active' ? '0 2px 0 #C8830A' : effectiveAllObtained ? '0 2px 0 #4B9C46' : '0 2px 0 #675D53',
         padding: 0, overflow: 'hidden', background: '#FBF7EC', cursor: 'pointer',
       }}
     >
@@ -132,11 +144,18 @@ function AttrPlanCard({ plan, userPlans, spirits, completedTasks, activeTasks, o
       <div style={{ background: headerBg, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
         <PlanIcon plan={plan} size={28} style={{ flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 900, fontFamily: 'var(--font-display)', color: '#FBF7EC', letterSpacing: 0.5, lineHeight: 1.2 }}>
-            {plan.type}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 15, fontWeight: 900, fontFamily: 'var(--font-display)', color: '#FBF7EC', letterSpacing: 0.5, lineHeight: 1.2 }}>
+              {plan.type}
+            </span>
           </div>
           <div style={{ fontSize: 10, color: 'rgba(251,247,236,0.65)', marginTop: 2 }}>
-            {totalPlanCount} 套方案{myUserPlans.length > 0 && `（含 ${myUserPlans.length} 套自定义）`}
+            {isNoShiny ? '积累属系池 · 精灵无异色' : (() => {
+              const parts = [];
+              if (poolPlansForAttr.length > 0) parts.push(`${poolPlansForAttr.length} 套积累池`);
+              if (myUserPlans.length > 0) parts.push(`${myUserPlans.length} 套自定义`);
+              return `${totalPlanCount} 套方案${parts.length > 0 ? `（含 ${parts.join('、')}）` : ''}`;
+            })()}
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
@@ -144,10 +163,22 @@ function AttrPlanCard({ plan, userPlans, spirits, completedTasks, activeTasks, o
             {status === 'active' && (
               <div style={{ fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 20, background: 'rgba(251,247,236,0.25)', color: '#FBF7EC', border: '1px solid rgba(251,247,236,0.4)', marginBottom: 4, display: 'inline-block' }}>刷取中</div>
             )}
-            <div style={{ fontSize: 16, fontWeight: 900, color: '#FBF7EC', fontFamily: 'var(--font-display)', lineHeight: 1 }}>
-              {obtainedCount}<span style={{ fontSize: 10, fontWeight: 400, color: 'rgba(251,247,236,0.7)', marginLeft: 1 }}>/{shinies.length}</span>
-            </div>
-            {allObtained && <div style={{ fontSize: 9, color: '#FBF7EC', fontWeight: 700, marginTop: 2 }}>✓ 全收集</div>}
+            {/* 数字进度：noShiny 用 poolShinies 进度，普通用 shinies 进度 */}
+            {isNoShiny
+              ? poolShinies.length > 0
+                ? (
+                  <div style={{ fontSize: 16, fontWeight: 900, color: '#FBF7EC', fontFamily: 'var(--font-display)', lineHeight: 1 }}>
+                    {poolObtainedCount}<span style={{ fontSize: 10, fontWeight: 400, color: 'rgba(251,247,236,0.7)', marginLeft: 1 }}>/{poolShinies.length}</span>
+                  </div>
+                )
+                : <div style={{ fontSize: 9, color: 'rgba(251,247,236,0.6)', fontStyle: 'italic' }}>无异色</div>
+              : (
+                <div style={{ fontSize: 16, fontWeight: 900, color: '#FBF7EC', fontFamily: 'var(--font-display)', lineHeight: 1 }}>
+                  {obtainedCount}<span style={{ fontSize: 10, fontWeight: 400, color: 'rgba(251,247,236,0.7)', marginLeft: 1 }}>/{shinies.length}</span>
+                </div>
+              )
+            }
+            {effectiveAllObtained && <div style={{ fontSize: 9, color: '#FBF7EC', fontWeight: 700, marginTop: 2 }}>✓ 全收集</div>}
           </div>
           <span style={{ fontSize: 16, color: 'rgba(251,247,236,0.7)' }}>›</span>
         </div>
@@ -156,35 +187,64 @@ function AttrPlanCard({ plan, userPlans, spirits, completedTasks, activeTasks, o
       {/* 内容区 */}
       <div style={{ padding: '10px 14px 12px' }}>
         {/* 推荐果实 + 平均破盾 */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: isNoShiny ? 4 : 10 }}>
           <div style={{ flex: 1, minWidth: 0, fontSize: 11, color: 'var(--text-light)' }}>
-            <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, marginRight: 4 }}>推荐：</span>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, marginRight: 4 }}>果实：</span>
             <FruitLine fruitA={plan.fruitA} fruitB={plan.fruitB} size={14} />
           </div>
-          {avgInfo
+          {!isNoShiny && (avgInfo
             ? <span style={{ fontSize: 9, color: '#8B5C00', fontWeight: 700, flexShrink: 0 }}>均 <span style={{ fontSize: 11, fontFamily: 'var(--font-display)' }}>{avgInfo.avg}</span> 次破盾</span>
             : <span style={{ fontSize: 9, color: 'var(--text-muted)', fontStyle: 'italic', flexShrink: 0 }}>暂无记录</span>
-          }
+          )}
         </div>
-        {/* 精灵头像 + 查看详情文字 */}
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-          {plan.shinies.map(name => (
-            <SpiritAvatar key={name} name={name} obtained={spirits[name]?.obtained} size={36} />
-          ))}
-          <span style={{
-            marginLeft: 'auto', fontSize: 11,
-            color: status === 'active' ? 'var(--cta)' : 'var(--text-muted)',
-            fontWeight: status === 'active' ? 700 : 600,
-          }}>
-            {status === 'active' ? '继续刷取 →' : '查看详情 →'}
-          </span>
-        </div>
+        {/* 精灵头像（有异色才展示）或 积累池说明 */}
+        {isNoShiny ? (
+          plan.poolShinies?.length > 0 ? (
+            <div>
+              <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 5, fontWeight: 600 }}>
+                可产出：
+              </div>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                {plan.poolShinies.map(name => (
+                  <SpiritAvatar key={name} name={name} obtained={spirits[name]?.obtained} size={36} />
+                ))}
+                <span style={{
+                  marginLeft: 'auto', fontSize: 11,
+                  color: status === 'active' ? 'var(--cta)' : 'var(--text-muted)',
+                  fontWeight: status === 'active' ? 700 : 600,
+                }}>
+                  {status === 'active' ? '继续刷取 →' : '查看详情 →'}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+              使用此精灵果实可持续积累属系池权重，提升同系别异色出货概率
+              <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>
+                {status === 'active' ? '继续刷取 →' : '点击开始 →'}
+              </span>
+            </div>
+          )
+        ) : (
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+            {plan.shinies.map(name => (
+              <SpiritAvatar key={name} name={name} obtained={spirits[name]?.obtained} size={36} />
+            ))}
+            <span style={{
+              marginLeft: 'auto', fontSize: 11,
+              color: status === 'active' ? 'var(--cta)' : 'var(--text-muted)',
+              fontWeight: status === 'active' ? 700 : 600,
+            }}>
+              {status === 'active' ? '继续刷取 →' : '查看详情 →'}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 /* ─── 方案卡（赛季奇遇）── 点击直接进二级页 ──────────────────────────────────── */
-function SeasonPlanCard({ plan, spirits, completedTasks, activeTasks, onClick }) {
+function SeasonPlanCard({ plan, spirits, completedTasks, activeTasks, onClick, subtitle }) {
   const status = getSeasonPlanStatus(plan, spirits, activeTasks);
   const avgInfo = calcPlanAvgBreaks(plan.id, completedTasks);
   const allObtained = plan.shinies.length > 0 && plan.shinies.every(n => spirits[n]?.obtained);
@@ -209,7 +269,7 @@ function SeasonPlanCard({ plan, spirits, completedTasks, activeTasks, onClick })
           <div style={{ fontSize: 15, fontWeight: 900, fontFamily: 'var(--font-display)', color: '#FBF7EC', letterSpacing: 0.5, lineHeight: 1.2 }}>
             {plan.type}
           </div>
-          <div style={{ fontSize: 10, color: 'rgba(251,247,236,0.65)', marginTop: 2 }}>赛季奇遇 · 单果实刷取</div>
+          <div style={{ fontSize: 10, color: 'rgba(251,247,236,0.65)', marginTop: 2 }}>{subtitle || '赛季奇遇 · 单果实刷取'}</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <div style={{ textAlign: 'right' }}>
@@ -256,23 +316,27 @@ function SeasonPlanCard({ plan, spirits, completedTasks, activeTasks, onClick })
   );
 }
 
-/* ─── 筛选项 ────────────────────────────────────────────────────────────────── */
+/* ─── 筛选项（与 picker 分类保持一致） ──────────────────────────────────────── */
 const FILTERS = [
   { key: 'all',    label: '全部' },
-  { key: 'active', label: '进行中' },
-  { key: 'idle',   label: '未完成' },
-  { key: 'done',   label: '已完成' },
+  { key: 'attr',   label: '属性混抓' },
+  { key: 'season', label: '单刷奇遇' },
+  { key: 'single', label: '单刷异色' },
+  { key: 'custom', label: '自定义' },
 ];
 
 /* ─── 主页面 ─────────────────────────────────────────────────────────────────── */
 export default function PlanList({ navigate, mode = 'library', goBack }) {
   const { state } = useStore();
   const [filter, setFilter] = useState('all');
+  const [pickerTab, setPickerTab] = useState('all');
 
-  const attrPlans   = PLANS.filter(p => !p.season);
-  const seasonPlans = PLANS.filter(p => p.season);
+  // noShiny 且有 attrId 的方案归属父属系二级页，不在主列表独立展示
+  const attrPlans        = PLANS.filter(p => !p.season && !p.singleSpirit && !(p.noShiny && p.attrId));
+  const seasonPlans      = PLANS.filter(p => p.season);
+  const singleSpiritPlans = PLANS.filter(p => p.singleSpirit);
 
-  // 计算每个属性方案的状态
+  // 计算每类方案的状态
   const attrWithStatus = attrPlans.map(p => ({
     plan: p,
     status: getPlanStatus(p, state.spirits, state.activeTasks),
@@ -281,91 +345,252 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
     plan: p,
     status: getSeasonPlanStatus(p, state.spirits, state.activeTasks),
   }));
+  const singleWithStatus = singleSpiritPlans.map(p => ({
+    plan: p,
+    status: getSeasonPlanStatus(p, state.spirits, state.activeTasks),
+  }));
 
-  const allWithStatus = [...attrWithStatus, ...seasonWithStatus];
+  const allWithStatus = [...attrWithStatus, ...seasonWithStatus, ...singleWithStatus];
 
-  // 顶部总览统计
-  const activeCount  = allWithStatus.filter(x => x.status === 'active').length;
-  const doneCount    = allWithStatus.filter(x => x.status === 'done').length;
-  const idleCount    = allWithStatus.filter(x => x.status === 'idle').length;
+  // 顶部总览统计（含单刷异色）
+  const activeCount = allWithStatus.filter(x => x.status === 'active').length;
+  const doneCount   = allWithStatus.filter(x => x.status === 'done').length;
+  const idleCount   = allWithStatus.filter(x => x.status === 'idle').length;
+
+  // 用户自定义方案
+  const userPlans = state.userPlanConfig || [];
 
   // 进行中的 planId（固定置顶）
   const activePlanIds = new Set((state.activeTasks || []).map(t => t.planId));
 
-  // 过滤 + 排序（进行中 → 未开始 → 已完成，进行中组内固定置顶）
-  const sortedAttr = [...attrWithStatus].sort((a, b) => {
-    const order = { active: 0, idle: 1, done: 2 };
-    return order[a.status] - order[b.status];
-  });
-  const sortedSeason = [...seasonWithStatus].sort((a, b) => {
-    const order = { active: 0, idle: 1, done: 2 };
-    return order[a.status] - order[b.status];
-  });
+  // 排序：进行中 → 未开始 → 已完成
+  const sortOrder = { active: 0, idle: 1, done: 2 };
+  const sortedAttr   = [...attrWithStatus].sort((a, b) => sortOrder[a.status] - sortOrder[b.status]);
+  const sortedSeason = [...seasonWithStatus].sort((a, b) => sortOrder[a.status] - sortOrder[b.status]);
+  const sortedSingle = [...singleWithStatus].sort((a, b) => sortOrder[a.status] - sortOrder[b.status]);
 
-  // 筛选（'idle' 在此包含 idle 和 active，因为它们都"未全收"——只保留语义清晰的：未完成 = idle）
-  const filterFn = ({ status }) => {
-    if (filter === 'all') return true;
-    if (filter === 'active') return status === 'active';
-    if (filter === 'idle')   return status === 'idle';
-    if (filter === 'done')   return status === 'done';
-    return true;
-  };
+  // library 模式分类显示控制
+  const showAttr      = filter === 'all' || filter === 'attr';
+  const showSeason    = filter === 'all' || filter === 'season';
+  const showSingle    = filter === 'all' || filter === 'single';
+  const showCustomLib = filter === 'all' || filter === 'custom';
 
-  const filteredAttr   = sortedAttr.filter(filterFn);
-  const filteredSeason = sortedSeason.filter(filterFn);
-
-  // picker 模式仍用 PlanCard（行为不变）
+  // picker 模式：带 tab 筛选的选方案页
   if (mode === 'picker') {
+    const PICKER_TABS = [
+      { key: 'all',     label: '全部' },
+      { key: 'attr',    label: '属性混抓' },
+      { key: 'season',  label: '单刷奇遇' },
+      { key: 'single',  label: '单刷异色' },
+      { key: 'custom',  label: '自定义方案' },
+    ];
+
+    const showAttr   = pickerTab === 'all' || pickerTab === 'attr';
+    const showSeason = pickerTab === 'all' || pickerTab === 'season';
+    const showSingle = pickerTab === 'all' || pickerTab === 'single';
+    const showCustom = pickerTab === 'all' || pickerTab === 'custom';
+
     return (
-      <div style={{ position: 'relative', paddingBottom: 16 }}>
-        <div style={{ padding: '20px 16px 8px', display: 'flex', alignItems: 'center', gap: 8 }}>
-          {goBack && <button className="back-btn" onClick={goBack} style={{ marginRight: 4 }}>←</button>}
+      <div style={{ position: 'relative', paddingBottom: 24 }}>
+        {/* 页头 */}
+        <div style={{ padding: '20px 16px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {goBack && (
+            <button className="back-btn" onClick={goBack} style={{ marginRight: 4 }}>
+              <img src={`${import.meta.env.BASE_URL}back-icon.png`} alt="返回" />
+            </button>
+          )}
           <div>
             <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--text)', fontFamily: 'var(--font-display)' }}>选择刷取方案</div>
             <div style={{ fontSize: 12, color: 'var(--text-light)', marginTop: 4, fontWeight: 600 }}>选一套方案，开始新的刷取</div>
           </div>
         </div>
-        {/* 属性混抓 */}
-        <div style={{ padding: '4px 16px 8px', fontSize: 12, fontWeight: 700, color: 'var(--text-muted)' }}>属性混抓</div>
-        {attrPlans.map(plan => (
-          <div key={plan.id} style={{ padding: '0 16px 0' }}>
-            <PlanCard
-              plan={plan} spirits={state.spirits}
-              isActive={activePlanIds.has(plan.id)}
-              completedTasks={state.completedTasks}
-              onClick={() => navigate('checklist', { planId: plan.id, basePlanId: plan.id })}
-            />
-          </div>
-        ))}
-        {/* 自定义方案入口 */}
-        <div
-          className="plan-card animate-in"
-          onClick={() => navigate('customChecklist')}
-          style={{
-            margin: '0 16px', borderColor: '#675D53', boxShadow: '0 2px 0 #675D53',
-            padding: 0, overflow: 'hidden', background: '#FBF7EC', cursor: 'pointer',
-          }}
-        >
-          <div style={{ background: '#2B2A2E', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: 'rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>✏️</div>
-            <span style={{ flex: 1, fontSize: 15, fontWeight: 900, fontFamily: 'var(--font-display)', color: '#FBF7EC', letterSpacing: 0.5 }}>自定义方案</span>
-            <span style={{ fontSize: 12, color: 'rgba(251,247,236,0.55)', fontWeight: 600 }}>点击填写 →</span>
-          </div>
-          <div style={{ padding: '10px 14px 12px' }}>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.7 }}>手动填写果实组合，适合使用非标准方案的情况</div>
-          </div>
+
+        {/* ── Tab 筛选栏 ── */}
+        <div style={{ display: 'flex', gap: 6, padding: '0 16px 12px', overflowX: 'auto', scrollbarWidth: 'none' }}>
+          {PICKER_TABS.map(t => {
+            const isActive = pickerTab === t.key;
+            const isCustomTab = t.key === 'custom';
+            const baseStyle = {
+              flexShrink: 0, padding: '5px 12px', borderRadius: 20,
+              fontSize: 12, fontWeight: isActive ? 800 : 600,
+              fontFamily: 'var(--font-body)', cursor: 'pointer', transition: 'all 0.15s',
+              border: isActive ? '2px solid var(--text)' : '1.5px solid var(--divider)',
+              background: isActive ? 'var(--text)' : 'var(--card)',
+              color: isActive ? 'var(--bg)' : 'var(--text-muted)',
+            };
+            const customStyle = isCustomTab && isActive
+              ? { background: '#7E57C2', border: '2px solid #7E57C2', color: '#fff' }
+              : isCustomTab
+              ? { background: 'rgba(126,87,194,0.08)', border: '1.5px solid rgba(126,87,194,0.35)', color: '#7E57C2' }
+              : {};
+            return (
+              <button key={t.key} onClick={() => setPickerTab(t.key)}
+                style={{ ...baseStyle, ...customStyle }}>
+                {t.label}
+              </button>
+            );
+          })}
         </div>
-        {/* 赛季奇遇 */}
-        <div style={{ padding: '12px 16px 6px', fontSize: 12, fontWeight: 700, color: 'var(--text-muted)' }}>赛季奇遇单抓</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 8px', padding: '0 16px' }}>
-          {seasonPlans.map(plan => (
-            <PlanCard key={plan.id} plan={plan} spirits={state.spirits}
-              isActive={activePlanIds.has(plan.id)} compact
-              completedTasks={state.completedTasks}
-              onClick={() => navigate('checklist', { planId: plan.id })}
-            />
-          ))}
-        </div>
+
+        {/* ── 属性混抓 ── */}
+        {showAttr && (
+          <>
+            {pickerTab === 'all' && (
+              <div style={{ padding: '0 16px 7px', fontSize: 12, fontWeight: 800, color: 'var(--text-muted)' }}>属性混抓</div>
+            )}
+            {attrPlans.map(plan => (
+              plan.noShiny ? (
+                // noShiny 方案（水系/萌系）用 AttrPlanCard，正确读取 poolShinies
+                <AttrPlanCard
+                  key={plan.id}
+                  plan={plan}
+                  userPlans={state.userPlanConfig}
+                  spirits={state.spirits}
+                  completedTasks={state.completedTasks}
+                  activeTasks={state.activeTasks}
+                  pinned={activePlanIds.has(plan.id)}
+                  onClick={() => navigate('checklist', { planId: plan.id, basePlanId: plan.id })}
+                />
+              ) : (
+                <div key={plan.id} style={{ padding: '0 16px 0' }}>
+                  <PlanCard
+                    plan={plan} spirits={state.spirits}
+                    isActive={activePlanIds.has(plan.id)}
+                    completedTasks={state.completedTasks}
+                    onClick={() => navigate('checklist', { planId: plan.id, basePlanId: plan.id })}
+                  />
+                </div>
+              )
+            ))}
+          </>
+        )}
+
+        {/* ── 单刷奇遇（赛季） ── */}
+        {showSeason && (
+          <>
+            {pickerTab === 'all' && (
+              <div style={{ padding: showAttr ? '8px 16px 7px' : '0 16px 7px', fontSize: 12, fontWeight: 800, color: 'var(--text-muted)' }}>单刷奇遇</div>
+            )}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 8px', padding: '0 16px' }}>
+              {seasonPlans.map(plan => (
+                <PlanCard key={plan.id} plan={plan} spirits={state.spirits}
+                  isActive={activePlanIds.has(plan.id)} compact
+                  completedTasks={state.completedTasks}
+                  onClick={() => navigate('checklist', { planId: plan.id })}
+                />
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* ── 单刷异色（普通异色单刷） ── */}
+        {showSingle && (
+          <>
+            {pickerTab === 'all' && (
+              <div style={{ padding: (showAttr || showSeason) ? '8px 16px 7px' : '0 16px 7px', fontSize: 12, fontWeight: 800, color: 'var(--text-muted)' }}>单刷异色</div>
+            )}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 8px', padding: '0 16px' }}>
+              {singleSpiritPlans.map(plan => (
+                <PlanCard key={plan.id} plan={plan} spirits={state.spirits}
+                  isActive={activePlanIds.has(plan.id)} compact
+                  completedTasks={state.completedTasks}
+                  onClick={() => navigate('checklist', { planId: plan.id })}
+                />
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* ── 自定义方案 ── */}
+        {showCustom && (
+          <>
+            {pickerTab === 'all' && (
+              <div style={{ padding: (showAttr || showSeason || showSingle) ? '8px 16px 7px' : '0 16px 7px', fontSize: 12, fontWeight: 800, color: 'var(--text-muted)' }}>自定义方案</div>
+            )}
+            {/* 已有的自定义方案列表 */}
+            {userPlans.length > 0 && (
+              <div style={{ padding: '0 16px' }}>
+                {userPlans.map(plan => {
+                  const isActive = activePlanIds.has(plan.id);
+                  return (
+                  <div
+                    key={plan.id}
+                    className="plan-card"
+                    onClick={() => isActive
+                      ? navigate('recorder', { planId: plan.id })
+                      : navigate('checklist', { planId: plan.id })
+                    }
+                    style={{
+                      borderColor: isActive ? '#C8830A' : '#675D53',
+                      boxShadow: isActive ? '0 2px 0 #C8830A' : '0 2px 0 #675D53',
+                      padding: 0, overflow: 'hidden', background: '#FBF7EC', cursor: 'pointer',
+                      marginBottom: 8,
+                    }}
+                  >
+                    <div style={{
+                      background: isActive ? '#C8830A' : '#2B2A2E',
+                      padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8,
+                    }}>
+                      <PlanIcon plan={plan} size={20} />
+                      <span style={{
+                        flex: 1, fontSize: 13, fontWeight: 900,
+                        fontFamily: 'var(--font-display)', color: '#FBF7EC',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>{plan.label || plan.type || '自定义方案'}</span>
+                      {isActive && (
+                        <span style={{
+                          fontSize: 9, fontWeight: 800, padding: '1px 6px', borderRadius: 20,
+                          background: 'rgba(251,247,236,0.25)', color: '#FBF7EC',
+                          border: '1px solid rgba(251,247,236,0.4)', flexShrink: 0,
+                        }}>刷取中</span>
+                      )}
+                    </div>
+                    <div style={{ padding: '8px 12px 10px' }}>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 5 }}>
+                        <FruitLine fruitA={plan.fruitA} fruitB={plan.fruitB} size={13} />
+                      </div>
+                      <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
+                        {plan.shinies?.slice(0, 4).map(name => (
+                          <SpiritAvatar key={name} name={name} obtained={state.spirits[name]?.obtained} size={32} showName={false} />
+                        ))}
+                        <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)' }}>
+                          {isActive ? '继续刷取 →' : '点击开始 →'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  );
+                })}
+              </div>
+            )}
+            {/* 新建自定义方案入口 */}
+            <div style={{ padding: userPlans.length > 0 ? '4px 16px 0' : '0 16px 0' }}>
+              <div
+                className="plan-card"
+                onClick={() => navigate('customChecklist')}
+                style={{
+                  borderColor: '#675D53', boxShadow: '0 2px 0 #675D53',
+                  padding: 0, overflow: 'hidden', background: '#FBF7EC', cursor: 'pointer',
+                }}
+              >
+                <div style={{ background: '#7E57C2', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{
+                    width: 26, height: 26, borderRadius: 8, flexShrink: 0,
+                    background: 'rgba(255,255,255,0.18)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14,
+                  }}>✏️</div>
+                  <span style={{ flex: 1, fontSize: 14, fontWeight: 900, fontFamily: 'var(--font-display)', color: '#fff', letterSpacing: 0.5 }}>
+                    新建自定义方案
+                  </span>
+                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', fontWeight: 600 }}>点击填写 →</span>
+                </div>
+                <div style={{ padding: '8px 14px 10px' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6 }}>手动填写果实组合，适合使用非标准方案的情况</div>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     );
   }
@@ -374,21 +599,41 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
   return (
     <div style={{ paddingBottom: 24 }}>
 
-      {/* 标题 */}
-      <div style={{ padding: '20px 16px 10px' }}>
-        <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--text)', fontFamily: 'var(--font-display)', marginBottom: 4 }}>果实方案库</div>
-        <div style={{ fontSize: 12, color: 'var(--text-light)', fontWeight: 600 }}>查看和管理你的果实方案</div>
-      </div>
-
-      {/* ── 顶部总览数据模块 ── */}
+      {/* ── 顶部总览数据模块（含标题+说明） ── */}
       <div style={{
-        margin: '0 16px 14px',
+        margin: '32px 16px 14px',
         background: 'var(--card)',
         border: '1.5px solid var(--card-border)',
         borderRadius: 'var(--radius-sm)',
         boxShadow: 'var(--shadow-card)',
         padding: '12px 14px',
+        position: 'relative',
+        overflow: 'visible',
       }}>
+        {/* 右上角装饰图（向上超出卡片） */}
+        <img
+          src={`${base}plan-deco.png`}
+          alt="" aria-hidden="true"
+          style={{
+            position: 'absolute',
+            top: -20,
+            right: -4,
+            height: 40,
+            width: 'auto',
+            pointerEvents: 'none',
+            userSelect: 'none',
+          }}
+        />
+        {/* 页面标题 + 说明 */}
+        <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <img src={`${base}icon-fruit-plan.png`} alt="" aria-hidden="true" style={{ width: 36, height: 36, objectFit: 'contain', flexShrink: 0 }} />
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--text)', fontFamily: 'var(--font-display)', marginBottom: 2 }}>果实方案库</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>查看和管理你的果实方案</div>
+          </div>
+        </div>
+        {/* 分隔线 */}
+        <div style={{ height: 1, background: 'var(--divider)', margin: '0 0 10px' }} />
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 10 }}>整体进度</div>
         <div style={{ display: 'flex', gap: 0 }}>
           {/* 已完成 */}
@@ -409,25 +654,32 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
         </div>
       </div>
 
-      {/* ── 筛选栏 ── */}
+      {/* ── 筛选栏（分类维度，与 picker 保持一致） ── */}
       <div style={{ display: 'flex', gap: 6, padding: '0 16px 12px', overflowX: 'auto', scrollbarWidth: 'none' }}>
         {FILTERS.map(f => {
           const active = filter === f.key;
-          // 计数标注
-          const count = f.key === 'all' ? allWithStatus.length
-            : f.key === 'active' ? activeCount
-            : f.key === 'done' ? doneCount
-            : idleCount;
+          const isCustom = f.key === 'custom';
+          // 各分类计数
+          const count = f.key === 'all'    ? attrPlans.length + seasonPlans.length + singleSpiritPlans.length
+            : f.key === 'attr'   ? attrPlans.length
+            : f.key === 'season' ? seasonPlans.length
+            : f.key === 'single' ? singleSpiritPlans.length
+            : userPlans.length; // custom
+          const customActiveStyle = isCustom && active
+            ? { background: '#7E57C2', border: '2px solid #7E57C2', color: '#fff' }
+            : isCustom && !active
+            ? { background: 'rgba(126,87,194,0.08)', border: '1.5px solid rgba(126,87,194,0.35)', color: '#7E57C2' }
+            : {};
           return (
             <button key={f.key} onClick={() => setFilter(f.key)} style={{
-              flexShrink: 0,
-              padding: '5px 12px',
+              flexShrink: 0, padding: '5px 12px',
               border: active ? '2px solid var(--text)' : '1.5px solid var(--divider)',
               borderRadius: 20,
               background: active ? 'var(--text)' : 'var(--card)',
               color: active ? 'var(--bg)' : 'var(--text-muted)',
               fontSize: 12, fontWeight: active ? 800 : 600,
               fontFamily: 'var(--font-body)', cursor: 'pointer', transition: 'all 0.15s',
+              ...customActiveStyle,
             }}>
               {f.label}
               <span style={{ fontSize: 10, marginLeft: 4, opacity: 0.7 }}>({count})</span>
@@ -436,14 +688,113 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
         })}
       </div>
 
-      {/* ── 属性混抓方案列表 ── */}
-      {(filteredAttr.length > 0 || filter === 'all') && (
+      {/* ── 自定义方案区块（全部模式下置顶） ── */}
+      {showCustomLib && (
         <>
           <div style={{ padding: '0 16px 7px', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)' }}>属性混抓</span>
-            <span style={{ fontSize: 10, color: 'var(--text-muted)', opacity: 0.6 }}>{filteredAttr.length} 个</span>
+            <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)' }}>自定义方案</span>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', opacity: 0.6 }}>{userPlans.length} 个</span>
           </div>
-          {filteredAttr.map(({ plan }) => (
+          {/* 已有自定义方案列表 */}
+          {userPlans.length > 0 && (
+            <div style={{ padding: '0 16px' }}>
+              {userPlans.map(plan => {
+                const isActive = activePlanIds.has(plan.id);
+                return (
+                <div
+                  key={plan.id}
+                  className="plan-card"
+                  onClick={() => isActive
+                    ? navigate('recorder', { planId: plan.id })
+                    : navigate('checklist', { planId: plan.id })
+                  }
+                  style={{
+                    borderColor: isActive ? '#C8830A' : '#675D53',
+                    boxShadow: isActive ? '0 2px 0 #C8830A' : '0 2px 0 #675D53',
+                    padding: 0, overflow: 'hidden', background: '#FBF7EC', cursor: 'pointer',
+                    marginBottom: 8,
+                  }}
+                >
+                  <div style={{
+                    background: isActive ? '#C8830A' : '#2B2A2E',
+                    padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8,
+                  }}>
+                    <PlanIcon plan={plan} size={20} />
+                    <span style={{
+                      flex: 1, fontSize: 13, fontWeight: 900,
+                      fontFamily: 'var(--font-display)', color: '#FBF7EC',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>{plan.label || plan.type || '自定义方案'}</span>
+                    {isActive && (
+                      <span style={{
+                        fontSize: 9, fontWeight: 800, padding: '1px 6px', borderRadius: 20,
+                        background: 'rgba(251,247,236,0.25)', color: '#FBF7EC',
+                        border: '1px solid rgba(251,247,236,0.4)', flexShrink: 0,
+                      }}>刷取中</span>
+                    )}
+                  </div>
+                  <div style={{ padding: '8px 12px 10px' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 5 }}>
+                      <FruitLine fruitA={plan.fruitA} fruitB={plan.fruitB} size={13} />
+                    </div>
+                    <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
+                      {plan.shinies?.slice(0, 4).map(name => (
+                        <SpiritAvatar key={name} name={name} obtained={state.spirits[name]?.obtained} size={32} showName={false} />
+                      ))}
+                      <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)' }}>
+                        {isActive ? '继续刷取 →' : '点击开始 →'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                );
+              })}
+            </div>
+          )}
+          {/* 新建自定义方案入口 */}
+          {userPlans.length === 0 && filter === 'custom' && (
+            <div style={{ textAlign: 'center', padding: '16px 16px 8px', color: 'var(--text-muted)', fontSize: 13 }}>
+              还没有自定义方案，点击下方新建吧
+            </div>
+          )}
+          <div style={{ padding: userPlans.length > 0 ? '4px 16px 0' : '0 16px 0' }}>
+            <div
+              className="plan-card"
+              onClick={() => navigate('customChecklist', { saveOnly: true })}
+              style={{
+                borderColor: '#675D53', boxShadow: '0 2px 0 #675D53',
+                padding: 0, overflow: 'hidden', background: '#FBF7EC', cursor: 'pointer',
+              }}
+            >
+              <div style={{ background: '#7E57C2', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+                  background: 'rgba(255,255,255,0.18)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
+                }}>✏️</div>
+                <span style={{ flex: 1, fontSize: 15, fontWeight: 900, fontFamily: 'var(--font-display)', color: '#fff', letterSpacing: 0.5 }}>
+                  新建自定义方案
+                </span>
+                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', fontWeight: 600 }}>点击填写 →</span>
+              </div>
+              <div style={{ padding: '10px 14px 12px' }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.7 }}>
+                  手动填写果实组合，适合使用非标准方案的情况
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── 属性混抓方案列表 ── */}
+      {showAttr && (
+        <>
+          <div style={{ padding: `${showCustomLib ? '10px' : '0'} 16px 7px`, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)' }}>属性混抓</span>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', opacity: 0.6 }}>{attrPlans.length} 个</span>
+          </div>
+          {sortedAttr.map(({ plan }) => (
             <AttrPlanCard
               key={plan.id}
               plan={plan}
@@ -455,45 +806,17 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
               onClick={() => navigate('attrPlanDetail', { planId: plan.id })}
             />
           ))}
-          {/* ✏️ 自定义方案入口（始终显示在属性混抓列表末尾） */}
-          {filter === 'all' && (
-            <div
-              className="plan-card"
-              onClick={() => navigate('customChecklist')}
-              style={{
-                borderColor: '#675D53', boxShadow: '0 2px 0 #675D53',
-                padding: 0, overflow: 'hidden', background: '#FBF7EC', cursor: 'pointer',
-              }}
-            >
-              <div style={{ background: '#2B2A2E', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{
-                  width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-                  background: 'rgba(255,255,255,0.12)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
-                }}>✏️</div>
-                <span style={{ flex: 1, fontSize: 15, fontWeight: 900, fontFamily: 'var(--font-display)', color: '#FBF7EC', letterSpacing: 0.5 }}>
-                  自定义方案
-                </span>
-                <span style={{ fontSize: 12, color: 'rgba(251,247,236,0.55)', fontWeight: 600 }}>点击填写 →</span>
-              </div>
-              <div style={{ padding: '10px 14px 12px' }}>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.7 }}>
-                  手动填写果实组合，适合使用非标准方案的情况
-                </div>
-              </div>
-            </div>
-          )}
         </>
       )}
 
-      {/* ── 赛季奇遇方案列表 ── */}
-      {filteredSeason.length > 0 && (
+      {/* ── 单刷奇遇方案列表 ── */}
+      {showSeason && sortedSeason.length > 0 && (
         <>
-          <div style={{ padding: filteredAttr.length > 0 ? '10px 16px 7px' : '0 16px 7px', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)' }}>赛季奇遇</span>
-            <span style={{ fontSize: 10, color: 'var(--text-muted)', opacity: 0.6 }}>{filteredSeason.length} 个</span>
+          <div style={{ padding: `${showAttr || showCustomLib ? '10px' : '0'} 16px 7px`, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)' }}>单刷奇遇</span>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', opacity: 0.6 }}>{seasonPlans.length} 个</span>
           </div>
-          {filteredSeason.map(({ plan }) => (
+          {sortedSeason.map(({ plan }) => (
             <SeasonPlanCard
               key={plan.id}
               plan={plan}
@@ -506,11 +829,25 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
         </>
       )}
 
-      {/* 空状态 */}
-      {filteredAttr.length === 0 && filteredSeason.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--text-muted)', fontSize: 13 }}>
-          暂无符合条件的方案
-        </div>
+      {/* ── 单刷异色方案列表 ── */}
+      {showSingle && sortedSingle.length > 0 && (
+        <>
+          <div style={{ padding: `${showAttr || showSeason || showCustomLib ? '10px' : '0'} 16px 7px`, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)' }}>单刷异色</span>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', opacity: 0.6 }}>{singleSpiritPlans.length} 个</span>
+          </div>
+          {sortedSingle.map(({ plan }) => (
+            <SeasonPlanCard
+              key={plan.id}
+              plan={plan}
+              spirits={state.spirits}
+              completedTasks={state.completedTasks}
+              activeTasks={state.activeTasks}
+              subtitle="单刷异色 · 专属果实"
+              onClick={() => navigate('checklist', { planId: plan.id })}
+            />
+          ))}
+        </>
       )}
 
     </div>

@@ -197,6 +197,14 @@ export const FRUIT_GUIDE_GROUPS = [
         location: null,
         tip: null,
       },
+      {
+        fruit: '小独角兽果实',
+        spirit: '小独角兽',
+        attrs: ['光系'],
+        unlock: '抓/进化 20 只小独角兽',
+        location: null,
+        tip: '第二属性为光系，使用果实可积累光系池，间接产出疾光千兽/绒仙子/嗜光嗡嗡异色',
+      },
     ],
   },
 ];

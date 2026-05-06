@@ -81,16 +81,25 @@ export default function Checklist({ planId, basePlanId, navigate, goBack }) {
   // 当前方案关联的特殊形态（通过 planIds 匹配）
   const relatedForms = plan ? SPECIAL_FORMS.filter(f => f.planIds.includes(plan.id)) : [];
 
-  // 同属性的所有可选方案（基础 + 自定义），用于「换方案」
+  // 同属性的所有可选方案（基础 + 积累属系池 + 自定义），用于「切换方案」
   const baseAttrId = basePlanId ?? planId;
   const basePlan = PLANS.find(p => p.id === baseAttrId);
+  // 同属系的积累属系池方案（noShiny && attrId 指向当前属系）
+  const poolSiblings = PLANS.filter(p => p.noShiny && p.attrId === baseAttrId);
   const switcherOptions = basePlan ? [
     // 基础推荐方案
-    { id: basePlan.id, label: `${basePlan.type}（推荐）`, fruitA: basePlan.fruitA, fruitB: basePlan.fruitB, isDefault: true },
+    { id: basePlan.id, label: `${basePlan.type}（推荐）`, fruitA: basePlan.fruitA, fruitB: basePlan.fruitB, tag: null },
+    // 积累属系池方案
+    ...poolSiblings.map(p => ({
+      id: p.id,
+      label: p.type,
+      fruitA: p.fruitA, fruitB: p.fruitB,
+      tag: '回顾价格高',
+    })),
     // 同属性的用户自定义方案
     ...(state.userPlanConfig || [])
       .filter(p => p.attrId === baseAttrId)
-      .map(p => ({ id: p.id, label: p.label || '自定义方案', fruitA: p.fruitA, fruitB: p.fruitB, isDefault: false })),
+      .map(p => ({ id: p.id, label: p.label || '自定义方案', fruitA: p.fruitA, fruitB: p.fruitB, tag: '自定义' })),
   ] : null;
 
   if (!plan) return null;
@@ -143,7 +152,7 @@ export default function Checklist({ planId, basePlanId, navigate, goBack }) {
       <div className="page-header">
         <button className="back-btn" onClick={goBack}><img src={`${import.meta.env.BASE_URL}back-icon.png`} alt="返回" /></button>
         <span className="page-header-title">确认方案</span>
-        {/* 「换方案」按钮：仅当有多个可选方案时才显示 */}
+        {/* 「切换方案」按钮：有多个可选方案时显示 */}
         {switcherOptions && switcherOptions.length > 1 && (
           <button
             onClick={() => setShowSwitcher(v => !v)}
@@ -159,7 +168,7 @@ export default function Checklist({ planId, basePlanId, navigate, goBack }) {
               transition: 'all 0.15s',
             }}
           >
-            {showSwitcher ? '收起 ↑' : '更换为自定义方案 ↓'}
+            {showSwitcher ? '收起 ↑' : '切换方案 ↓'}
           </button>
         )}
       </div>
@@ -172,6 +181,9 @@ export default function Checklist({ planId, basePlanId, navigate, goBack }) {
           </div>
           {switcherOptions.map(opt => {
             const isSelected = opt.id === activePlanId;
+            const tagColor = opt.tag === '积累属系池'
+              ? { bg: 'rgba(255,193,7,0.12)', text: '#9A7208', border: 'rgba(255,193,7,0.4)' }
+              : { bg: 'rgba(103,93,83,0.1)', text: 'var(--text-muted)', border: 'rgba(103,93,83,0.18)' };
             return (
               <button
                 key={opt.id}
@@ -197,12 +209,12 @@ export default function Checklist({ planId, basePlanId, navigate, goBack }) {
                     display: 'flex', alignItems: 'center', gap: 6,
                   }}>
                     {opt.label}
-                    {!opt.isDefault && (
+                    {opt.tag && (
                       <span style={{
                         fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 10,
-                        background: 'rgba(103,93,83,0.1)', color: 'var(--text-muted)',
-                        border: '1px solid rgba(103,93,83,0.18)',
-                      }}>自定义</span>
+                        background: tagColor.bg, color: tagColor.text,
+                        border: `1px solid ${tagColor.border}`,
+                      }}>{opt.tag}</span>
                     )}
                   </div>
                   {(opt.fruitA || opt.fruitB) && (
@@ -350,19 +362,24 @@ export default function Checklist({ planId, basePlanId, navigate, goBack }) {
           </div>
         )}
 
-        {/* 属性方案：可产出精灵列表（自定义方案无 shinies 则不渲染） */}
-        {!plan.season && plan.shinies.length > 0 && (
-          <>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 700, letterSpacing: 0.5 }}>
-              可产出异色精灵
-            </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {plan.shinies.map(name => (
-                <SpiritAvatar key={name} name={name} obtained={state.spirits[name]?.obtained} size={40} />
-              ))}
-            </div>
-          </>
-        )}
+        {/* 属性方案：可产出精灵列表 */}
+        {!plan.season && (() => {
+          const isNoShiny = !!plan.noShiny;
+          const displayShinies = isNoShiny ? (plan.poolShinies || []) : plan.shinies;
+          if (displayShinies.length === 0) return null;
+          return (
+            <>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 700, letterSpacing: 0.5 }}>
+                {isNoShiny ? '可间接产出异色精灵' : '可产出异色精灵'}
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {displayShinies.map(name => (
+                  <SpiritAvatar key={name} name={name} obtained={state.spirits[name]?.obtained} size={40} />
+                ))}
+              </div>
+            </>
+          );
+        })()}
       </div>
 
       {/* 属性方案：解锁条件（单独卡片） */}

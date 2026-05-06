@@ -1,40 +1,69 @@
 import { useState, useEffect, useRef } from 'react';
-import { supabase, APP_BASE_URL } from '../supabase';
+import { supabase } from '../supabase';
 import { useStore } from '../store';
 
-// 流程说明（implicit 流，邮件链接携带 access_token，任何浏览器打开均可）：
-//   bind / login / otp_recover → 统一使用 signInWithOtp 发魔法链接
-//   implicit 流下无需 code_verifier，跨浏览器（微信→Safari/邮箱App）完全兼容
-//   store 的 hydrateFromCloud 通过 pending_bind_email 反查旧数据并合并
+// OTP 验证码流程：
+//   1. 用户选择模式（bind / login / switch）并输入邮箱
+//   2. signInWithOtp 发送 8 位数字验证码（无 emailRedirectTo）
+//   3. 用户在当前设备输入验证码 → verifyOtp 完成验证
+//
+// 模式说明：
+//   bind   - 绑定邮箱：当前匿名数据 + 云端数据取并集
+//   login  - 找回账号：当前设备数据 + 云端数据取并集（同 bind 效果）
+//   switch - 切换账号：仅加载目标账号云端数据，当前设备数据不合并进去
 
 async function sendOtp(email) {
-  const { error } = await supabase.auth.signInWithOtp({
+  const { error } = await supabase.auth.signInWithOtp({ email });
+  if (error) throw error;
+}
+
+async function doVerifyOtp(email, token) {
+  const { error } = await supabase.auth.verifyOtp({
     email,
-    options: {
-      emailRedirectTo: APP_BASE_URL,
-      // shouldCreateUser: true 为默认值，首次绑定自动创建 email 用户
-    },
+    token,
+    type: 'email',
   });
   if (error) throw error;
 }
 
-// 检测是否在微信内置浏览器
 function isWechatBrowser() {
   return /MicroMessenger/i.test(navigator.userAgent);
 }
 
-const RESEND_CD = 60; // 重发冷却秒数
+const RESEND_CD = 60;
 
-export default function BindEmailModal({ onClose, onSuccess }) {
-  const { forceSyncNow } = useStore();
-  const [step, setStep] = useState('input');       // 'input' | 'sent'
-  const [mode, setMode] = useState('bind');        // 'bind' | 'login' | 'otp_recover'
+// ── 各模式的文案配置 ──────────────────────────────────────────────────────────
+const MODE_CONFIG = {
+  bind: {
+    title: '📧 绑定邮箱',
+    desc: '绑定邮箱后，换手机或重装也能一键恢复全部数据，历史记录和收集进度一条不丢。',
+    verifyBtn: '确认绑定',
+  },
+  login: {
+    title: '🔑 找回账号',
+    desc: '输入你之前绑定的邮箱，验证成功后此设备的数据会与云端记录合并，两边进度都保留。',
+    verifyBtn: '确认找回',
+  },
+  switch: {
+    title: '🔄 切换账号',
+    desc: '输入另一个已绑定账号的邮箱，验证后此设备将切换到该账号。当前设备的数据不会合并过去，请放心。',
+    verifyBtn: '确认切换',
+  },
+};
+
+export default function BindEmailModal({ onClose, onSuccess, initialMode = 'bind' }) {
+  const { forceSyncNow, setAuthMode } = useStore();
+  const [step, setStep] = useState('input');    // 'input' | 'verify'
+  const [mode, setMode] = useState(initialMode); // 'bind' | 'login' | 'switch'
   const [email, setEmail] = useState('');
+  const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [resendCd, setResendCd] = useState(0);    // 重发倒计时（秒）
+  const [resendCd, setResendCd] = useState(0);
   const cdRef = useRef(null);
   const inWechat = isWechatBrowser();
+
+  const cfg = MODE_CONFIG[mode];
 
   // 倒计时
   useEffect(() => {
@@ -46,9 +75,9 @@ export default function BindEmailModal({ onClose, onSuccess }) {
       });
     }, 1000);
     return () => clearInterval(cdRef.current);
-  }, [resendCd > 0]);  // 只在变成正数时启动
+  }, [resendCd > 0]);
 
-  // 点击「发送」
+  // 发送验证码
   async function handleSubmit(e) {
     e.preventDefault();
     const trimmed = email.trim();
@@ -59,31 +88,32 @@ export default function BindEmailModal({ onClose, onSuccess }) {
     setLoading(true);
     setError('');
 
-    try {
-      // ① 发邮件前强制同步：直接从 Supabase 获取 session，不依赖 React state
-      //   同时把目标邮箱写入 user_email 列，供跨浏览器兜底反查
-      //   失败时抛出错误，阻止发邮件（避免无备份就发出链接）
-      await forceSyncNow(trimmed);
-    } catch (syncErr) {
-      const msg = syncErr.message || '';
-      if (msg.includes('尚未获得用户身份')) {
-        setError('账号初始化中，请稍候 3 秒后重试');
-      } else {
-        setError(`数据备份失败，暂不发送邮件。原因：${msg}`);
+    // 切换账号模式：不写 pending_bind_email，当前数据已有增量同步，无需额外备份
+    // 绑定/找回模式：写入 pending_bind_email，供登录后合并时使用
+    if (mode !== 'switch') {
+      try {
+        await forceSyncNow(trimmed);
+      } catch (syncErr) {
+        const msg = syncErr.message || '';
+        if (msg.includes('尚未获得用户身份')) {
+          setError('账号初始化中，请稍候 3 秒后重试');
+        } else {
+          setError(`数据备份失败，暂不发送验证码。原因：${msg}`);
+        }
+        setLoading(false);
+        return;
       }
-      setLoading(false);
-      return; // 备份失败则不发邮件，保护数据安全
     }
 
-    try {
-      // ② 所有场景统一使用 signInWithOtp（implicit 流）
-      //   implicit 流的链接直接携带 access_token，任何浏览器打开均可换取 session
-      //   store 的 hydrateFromCloud 会按 user_email 反查旧数据并合并
-      await sendOtp(trimmed);
+    // 提前设置登录模式，SIGNED_IN 事件触发时读取
+    setAuthMode(mode === 'switch' ? 'switch' : 'normal');
 
-      setStep('sent');
+    try {
+      await sendOtp(trimmed);
+      setStep('verify');
       setResendCd(RESEND_CD);
     } catch (err) {
+      setAuthMode('normal'); // 发送失败，重置模式
       const msg = err.message || '';
       if (msg.toLowerCase().includes('rate limit') || msg.includes('too many')) {
         setError('发送太频繁，请稍后再试');
@@ -95,14 +125,52 @@ export default function BindEmailModal({ onClose, onSuccess }) {
     }
   }
 
-  // 发送成功后的文案
-  const sentDesc = mode === 'otp_recover'
-    ? '该邮箱已有账号。点击邮件中的链接，即可登录并在此设备恢复所有数据。'
-    : mode === 'bind'
-    ? '点击邮件中的链接，即可完成邮箱绑定，数据将永久保存并可跨设备恢复。'
-    : '点击邮件中的链接，即可登录并恢复你的全部数据。';
+  // 验证 OTP
+  async function handleVerify(e) {
+    e.preventDefault();
+    const trimmed = otp.trim();
+    if (!trimmed || trimmed.length < 4) {
+      setError('请输入完整的验证码');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      await doVerifyOtp(email.trim(), trimmed);
+      onSuccess?.(email.trim(), mode);
+    } catch (err) {
+      setAuthMode('normal'); // 验证失败，重置模式，避免下次残留
+      const msg = err.message || '';
+      if (msg.toLowerCase().includes('expired') || msg.toLowerCase().includes('invalid')) {
+        setError('验证码错误或已过期，请重新发送');
+      } else {
+        setError(msg || '验证失败，请重试');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
 
-  const sentTitle = mode === 'otp_recover' ? '📬 请点击邮件链接登录' : '📬 邮件已发送';
+  // 重发验证码
+  async function handleResend() {
+    if (resendCd > 0 || loading) return;
+    setLoading(true);
+    setError('');
+    try {
+      await sendOtp(email.trim());
+      setResendCd(RESEND_CD);
+      setOtp('');
+    } catch (err) {
+      setError(err.message || '发送失败，请重试');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function switchMode(m) {
+    setMode(m);
+    setError('');
+  }
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -112,16 +180,64 @@ export default function BindEmailModal({ onClose, onSuccess }) {
         {step === 'input' && (
           <>
             <div className="modal-header">
-              <h3>{mode === 'bind' ? '📧 绑定邮箱' : '🔑 找回账号'}</h3>
+              <h3>{cfg.title}</h3>
               <button className="modal-close" onClick={onClose}>✕</button>
             </div>
 
             <div className="modal-body">
-              <p className="modal-desc">
-                {mode === 'bind'
-                  ? '绑定邮箱后，换手机或重装也能一键恢复全部数据，历史记录和收集进度一条不丢。'
-                  : '输入你之前绑定的邮箱，点击邮件链接即可在此设备恢复数据。'}
-              </p>
+              {/* 模式选择 Tab */}
+              <div style={{
+                display: 'flex',
+                gap: 6,
+                marginBottom: 14,
+                background: 'var(--bg-secondary, #f5f5f5)',
+                borderRadius: 10,
+                padding: 4,
+              }}>
+                {[
+                  { key: 'bind',   label: '绑定邮箱' },
+                  { key: 'login',  label: '找回账号' },
+                  { key: 'switch', label: '切换账号' },
+                ].map(({ key, label }) => (
+                  <button
+                    key={key}
+                    onClick={() => switchMode(key)}
+                    style={{
+                      flex: 1,
+                      padding: '7px 0',
+                      border: 'none',
+                      borderRadius: 7,
+                      fontSize: 13,
+                      fontWeight: mode === key ? 700 : 400,
+                      cursor: 'pointer',
+                      background: mode === key ? '#fff' : 'transparent',
+                      color: mode === key ? 'var(--primary, #4CAF50)' : 'var(--text-muted, #888)',
+                      boxShadow: mode === key ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
+                      transition: 'all 0.18s',
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <p className="modal-desc">{cfg.desc}</p>
+
+              {/* 切换账号额外提示 */}
+              {mode === 'switch' && (
+                <div style={{
+                  margin: '0 0 10px',
+                  padding: '9px 12px',
+                  borderRadius: 9,
+                  background: '#FFF8E1',
+                  border: '1.5px solid rgba(255,193,7,0.4)',
+                  fontSize: 12,
+                  color: '#795548',
+                  lineHeight: 1.6,
+                }}>
+                  💡 切换后此设备将只显示目标账号的数据。当前设备若有未绑定的记录，建议先用「绑定邮箱」保存。
+                </div>
+              )}
 
               <form onSubmit={handleSubmit}>
                 <div className="input-group">
@@ -144,100 +260,113 @@ export default function BindEmailModal({ onClose, onSuccess }) {
                   disabled={loading}
                   style={{ width: '100%', marginTop: 12 }}
                 >
-                  {loading ? '发送中…' : mode === 'bind' ? '发送确认邮件' : '发送登录链接'}
+                  {loading ? '发送中…' : '发送验证码'}
                 </button>
               </form>
-
-              {/* 模式切换 */}
-              <div className="modal-switch">
-                {mode === 'bind' ? (
-                  <span>
-                    换设备或之前已绑定？
-                    <button className="link-btn"
-                      onClick={() => { setMode('login'); setError(''); }}>
-                      找回已有账号
-                    </button>
-                  </span>
-                ) : (
-                  <button className="link-btn"
-                    onClick={() => { setMode('bind'); setError(''); }}>
-                    ← 绑定新邮箱
-                  </button>
-                )}
-              </div>
             </div>
           </>
         )}
 
-        {/* ── 步骤二：邮件已发送 ── */}
-        {step === 'sent' && (
+        {/* ── 步骤二：输入验证码 ── */}
+        {step === 'verify' && (
           <>
             <div className="modal-header">
-              <h3>{sentTitle}</h3>
+              <h3>📬 输入验证码</h3>
               <button className="modal-close" onClick={onClose}>✕</button>
             </div>
 
-            <div className="modal-body" style={{ textAlign: 'center' }}>
-              <div className="sent-icon">✉️</div>
+            <div className="modal-body">
+              <p className="modal-desc">
+                验证码已发送至 <strong>{email}</strong><br />
+                请查收邮件，将 8 位数字验证码填入下方。
+              </p>
 
-              {/* otp_recover 额外说明 */}
-              {mode === 'otp_recover' && (
-                <div className="form-error" style={{
-                  marginBottom: 12,
-                  background: 'rgba(200,131,10,0.08)',
-                  borderColor: 'rgba(200,131,10,0.3)',
-                  color: 'var(--gold)',
+              {/* 切换账号：醒目提示 */}
+              {mode === 'switch' && (
+                <div style={{
+                  margin: '4px 0 12px',
+                  padding: '10px 12px',
+                  borderRadius: 10,
+                  background: '#FFF3E0',
+                  border: '1.5px solid rgba(255,152,0,0.4)',
+                  fontSize: 12,
+                  color: '#E65100',
+                  lineHeight: 1.7,
                 }}>
-                  ℹ️ 该邮箱已注册过账号，我们已自动切换为「找回登录」模式
+                  🔄 验证后将切换到 <strong>{email}</strong> 的账号，当前设备数据不会合并进去。
                 </div>
               )}
 
-              <p className="modal-desc">
-                已向 <strong>{email}</strong> 发送邮件
-              </p>
-              <p className="modal-desc">{sentDesc}</p>
-
-              {/* 微信用户专属提示 */}
               {inWechat && (
                 <div style={{
-                  margin: '12px 0',
+                  margin: '8px 0 12px',
                   padding: '10px 12px',
                   borderRadius: 10,
                   background: '#F0FFF4',
                   border: '1.5px solid rgba(75,156,70,0.35)',
                   textAlign: 'left',
                 }}>
-                  <div style={{ fontSize: 12, fontWeight: 900, color: '#3D8B3D', marginBottom: 5 }}>
-                    📱 微信用户必读
+                  <div style={{ fontSize: 12, fontWeight: 900, color: '#3D8B3D', marginBottom: 4 }}>
+                    📱 微信用户
                   </div>
                   <div style={{ fontSize: 11, color: '#2E7D32', lineHeight: 1.7 }}>
-                    邮件链接会在<strong>系统浏览器（Safari）</strong>中打开，这是正常现象。<br />
-                    你的数据已在发送前备份到云端，在 Safari 里点击链接后会<strong>自动恢复</strong>所有记录。
+                    请打开手机邮箱 App 查收验证码，回到此页面输入即可，无需跳转浏览器。
                   </div>
                 </div>
               )}
 
-              <div className="sent-tips">
-                <p>⏳ 邮件通常在 <strong>1 分钟内</strong>送达，请耐心等待</p>
-                <p>📌 没收到？请检查垃圾邮件箱</p>
-                <p>🔗 链接 60 分钟内有效，过期需重新发送</p>
+              <form onSubmit={handleVerify}>
+                <div className="input-group">
+                  <label>验证码</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={8}
+                    value={otp}
+                    onChange={e => { setOtp(e.target.value.replace(/\D/g, '')); setError(''); }}
+                    placeholder="输入验证码"
+                    autoFocus
+                    style={{ letterSpacing: 6, fontSize: 22, textAlign: 'center' }}
+                  />
+                </div>
+
+                {error && <div className="form-error">⚠️ {error}</div>}
+
+                <div className="sent-tips" style={{ marginTop: 8 }}>
+                  <p>⏳ 邮件通常 <strong>1 分钟内</strong>送达，请耐心等待</p>
+                  <p>📌 没收到？请检查垃圾邮件箱</p>
+                  <p>🔢 验证码 <strong>10 分钟</strong>内有效，共 8 位数字</p>
+                </div>
+
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={loading}
+                  style={{ width: '100%', marginTop: 12 }}
+                >
+                  {loading ? '验证中…' : cfg.verifyBtn}
+                </button>
+              </form>
+
+              <div style={{ marginTop: 12, textAlign: 'center', fontSize: 13, color: 'var(--text-muted)' }}>
+                没收到验证码？
+                <button
+                  className="link-btn"
+                  style={{ fontSize: 13, opacity: resendCd > 0 ? 0.5 : 1 }}
+                  disabled={resendCd > 0 || loading}
+                  onClick={handleResend}
+                >
+                  {resendCd > 0 ? `重新发送（${resendCd}s）` : '重新发送'}
+                </button>
               </div>
 
               <button
                 className="btn-secondary"
-                style={{ width: '100%', marginTop: 16, opacity: resendCd > 0 ? 0.55 : 1 }}
-                disabled={resendCd > 0}
-                onClick={() => { setStep('input'); setError(''); }}
+                style={{ width: '100%', marginTop: 10 }}
+                onClick={() => { setStep('input'); setOtp(''); setError(''); setAuthMode('normal'); }}
               >
-                {resendCd > 0 ? `重新发送（${resendCd}s）` : '重新发送'}
-              </button>
-
-              <button
-                className="btn-primary"
-                style={{ width: '100%', marginTop: 8 }}
-                onClick={() => onSuccess?.(email)}
-              >
-                好的，我去查邮件
+                ← 修改邮箱
               </button>
             </div>
           </>

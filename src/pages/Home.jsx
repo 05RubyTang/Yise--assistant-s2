@@ -234,12 +234,25 @@ export default function Home({ navigate }) {
         };
         const remaining = 80 - task.shieldBreakCount;
         return (
-          <div key={task.planId} className="card active-task-card animate-in" style={{ animationDelay: `${idx * 0.06}s` }}>
-            <div className="active-task-info">
-              {/* 属性图标格 */}
+          <div key={task.planId} className="animate-in" style={{
+            position: 'relative',
+            margin: '0 16px 16px',
+            borderRadius: 16,
+            overflow: 'hidden',
+            backgroundImage: `url(${import.meta.env.BASE_URL}card-frame-compact.png)`,
+            backgroundSize: '100% 100%',
+            backgroundRepeat: 'no-repeat',
+            animationDelay: `${idx * 0.06}s`,
+          }}>
+            {/* 深色头部 */}
+            <div style={{
+              background: '#2B2A2E',
+              padding: '12px 14px',
+              display: 'flex', alignItems: 'center', gap: 12,
+            }}>
               <div style={{
                 width: 44, height: 44, borderRadius: 11,
-                background: '#F0E8D5',
+                background: 'rgba(255,255,255,0.13)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 flexShrink: 0, overflow: 'hidden', padding: 4,
               }}>
@@ -248,15 +261,15 @@ export default function Home({ navigate }) {
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
                   <span className="active-task-badge">刷取中</span>
-                  <span style={{ fontWeight: 800, fontSize: 14 }}>{plan.type}方案</span>
+                  <span style={{ fontWeight: 800, fontSize: 14, color: '#fff' }}>{plan.type}方案</span>
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>
                   {plan.fruitA}{plan.fruitB ? ` + ${plan.fruitB}` : ''}
                 </div>
               </div>
             </div>
-
-            <div style={{ marginBottom: 12 }}>
+            {/* 浅色体：透明背景展示纸纹 */}
+            <div style={{ padding: '12px 14px 14px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                 <span style={{ fontSize: 12, color: 'var(--text-light)', fontWeight: 600 }}>触发污染保底进度</span>
                 <span style={{ fontSize: 14, fontWeight: 900, color: 'var(--cta)' }}>
@@ -268,15 +281,14 @@ export default function Home({ navigate }) {
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 5, textAlign: 'right' }}>
                 还差 <span style={{ fontWeight: 700, color: 'var(--text)' }}>{remaining}</span> 次触发保底
               </div>
+              <button
+                className="btn btn-primary"
+                style={{ margin: '10px 0 0', width: '100%', padding: '13px', fontSize: 14 }}
+                onClick={() => navigate('recorder', { planId: task.planId })}
+              >
+                继续刷取 →
+              </button>
             </div>
-
-            <button
-              className="btn btn-primary"
-              style={{ margin: 0, width: '100%', padding: '13px', fontSize: 14 }}
-              onClick={() => navigate('recorder', { planId: task.planId })}
-            >
-              继续刷取 →
-            </button>
           </div>
         );
       })}

@@ -25,6 +25,7 @@ export default function Recorder({ planId, navigate }) {
   } : null;
 
   const [showResult, setShowResult] = useState(false);
+  const [showAbandonConfirm, setShowAbandonConfirm] = useState(false);
   const [showShinySelect, setShowShinySelect] = useState(false);
   // 暂存 'original' | 'polluted' 结果，等待精灵选择弹窗确认
   const [pendingResult, setPendingResult] = useState(null);
@@ -37,6 +38,18 @@ export default function Recorder({ planId, navigate }) {
   const [restockAdv, setRestockAdv] = useState('');
   const [restockSea, setRestockSea] = useState('');
   const [restockAtt, setRestockAtt] = useState('');
+  // 暂停计球弹框
+  const [showPauseInput, setShowPauseInput] = useState(false);
+  const [pauseInput, setPauseInput] = useState('');
+  const [pauseAdv, setPauseAdv] = useState('');
+  const [pauseSea, setPauseSea] = useState('');
+  const [pauseAtt, setPauseAtt] = useState('');
+  // 修改开始球数弹框
+  const [showEditStart, setShowEditStart] = useState(false);
+  const [editStartInput, setEditStartInput] = useState('');
+  const [editStartAdv, setEditStartAdv] = useState('');
+  const [editStartSea, setEditStartSea] = useState('');
+  const [editStartAtt, setEditStartAtt] = useState('');
   // 「配置咕噜球」Sheet（task 尚未设置球数时使用）
   const [showBallSetup, setShowBallSetup] = useState(false);
   const [setupMode, setSetupMode] = useState('simple');
@@ -88,10 +101,13 @@ export default function Recorder({ planId, navigate }) {
   const handleExit = () => navigate('home');
 
   const handleAbandon = () => {
-    if (confirm('确定要删除当前刷取记录吗？此操作不可恢复。')) {
-      dispatch({ type: 'ABANDON_TASK', planId });
-      navigate('home');
-    }
+    setShowAbandonConfirm(true);
+  };
+
+  const handleAbandonConfirmed = () => {
+    setShowAbandonConfirm(false);
+    dispatch({ type: 'ABANDON_TASK', planId });
+    navigate('home');
   };
 
   const remaining = 80 - task.shieldBreakCount;
@@ -100,9 +116,12 @@ export default function Recorder({ planId, navigate }) {
   // 咕噜球相关计算
   const ballMode = task.ballMode || 'simple';
   const ballRestocks = task.ballRestocks || [];
+  const pauseSegments = task.pauseSegments || [];
 
   // simple 模式
   const restockTotal = ballRestocks.reduce((s, r) => s + (r.amount || 0), 0);
+  // 历史暂停段已消耗总计
+  const pauseConsumedTotal = pauseSegments.reduce((s, seg) => s + (seg.consumed || 0), 0);
 
   // hasBallStart：判断是否已配置过球数
   // 兼容旧存量 task（无 ballMode 字段）：ballStart 字段名始终一致
@@ -135,6 +154,40 @@ export default function Recorder({ planId, navigate }) {
     dispatch({ type: 'ADD_BALL_RESTOCK', planId, adv, sea, att });
     setRestockAdv(''); setRestockSea(''); setRestockAtt('');
     setShowRestockByType(false);
+  };
+
+  // 暂停计球：结算当前段，重置起始
+  const handlePause = () => {
+    if (ballMode === 'byType') {
+      const adv = parseInt(pauseAdv.trim(), 10) || 0;
+      const sea = parseInt(pauseSea.trim(), 10) || 0;
+      const att = parseInt(pauseAtt.trim(), 10) || 0;
+      dispatch({ type: 'PAUSE_BALL_SEGMENT', planId, currentByType: { adv, sea, att } });
+      setPauseAdv(''); setPauseSea(''); setPauseAtt('');
+    } else {
+      const n = parseInt(pauseInput.trim(), 10);
+      if (isNaN(n) || n < 0) return;
+      dispatch({ type: 'PAUSE_BALL_SEGMENT', planId, current: n });
+      setPauseInput('');
+    }
+    setShowPauseInput(false);
+  };
+
+  // 修改开始球数：不清空 restocks / pauseSegments
+  const handleEditStart = () => {
+    if (ballMode === 'byType') {
+      const adv = parseInt(editStartAdv.trim(), 10) || 0;
+      const sea = parseInt(editStartSea.trim(), 10) || 0;
+      const att = parseInt(editStartAtt.trim(), 10) || 0;
+      dispatch({ type: 'UPDATE_BALL_START', planId, ballMode: 'byType', ballStartByType: { adv, sea, att } });
+      setEditStartAdv(''); setEditStartSea(''); setEditStartAtt('');
+    } else {
+      const n = parseInt(editStartInput.trim(), 10);
+      if (isNaN(n) || n < 0) return;
+      dispatch({ type: 'UPDATE_BALL_START', planId, ballMode: 'simple', ballStart: n });
+      setEditStartInput('');
+    }
+    setShowEditStart(false);
   };
 
   // 配置咕噜球：首次设置（或未填过的 task 中途补填）
@@ -195,7 +248,15 @@ export default function Recorder({ planId, navigate }) {
       </div>
 
       {/* 方案提示卡 */}
-      <div className="card recorder-plan-card" style={{ padding: 0, overflow: 'hidden' }}>
+      <div style={{
+        position: 'relative',
+        margin: '0 16px 16px',
+        borderRadius: 16,
+        overflow: 'hidden',
+        backgroundImage: `url(${import.meta.env.BASE_URL}card-frame-detail.png)`,
+        backgroundSize: '100% 100%',
+        backgroundRepeat: 'no-repeat',
+      }}>
         {/* 深色标题条 */}
         <div style={{
           background: '#2B2A2E',
@@ -228,7 +289,7 @@ export default function Recorder({ planId, navigate }) {
           {/* 右：已获得/总数（仅有 shinies 时展示） */}
           {plan.shinies.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 1, flexShrink: 0 }}>
-              <span style={{ fontSize: 20, fontWeight: 900, color: '#fff', fontFamily: 'var(--font-display)' }}>
+              <span className="font-subtitle" style={{ fontSize: 20, fontWeight: 900, color: '#fff' }}>
                 {plan.shinies.filter(n => state.spirits[n]?.obtained).length}
               </span>
               <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', fontWeight: 600 }}>
@@ -444,6 +505,155 @@ export default function Recorder({ planId, navigate }) {
         </div>
       )}
 
+      {/* 暂停计球弹窗 */}
+      {showPauseInput && (
+        <div
+          onClick={() => { setShowPauseInput(false); setPauseInput(''); setPauseAdv(''); setPauseSea(''); setPauseAtt(''); }}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 200,
+            background: 'rgba(43,42,46,0.45)',
+            display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: 500,
+              background: '#FBF7EC', borderRadius: '16px 16px 0 0',
+              padding: '20px 20px 32px',
+              boxShadow: '0 -4px 24px rgba(43,42,46,0.18)',
+            }}
+          >
+            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 2 }}>暂停计球</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 14, lineHeight: 1.6 }}>
+              填入<strong>当前</strong>携带的球数，系统自动结算本段消耗。下次继续刷时重新输入。
+            </div>
+            {ballMode === 'byType' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {[
+                  { label: '高级球', value: pauseAdv, setter: setPauseAdv, color: '#C8830A' },
+                  { label: '赛季球', value: pauseSea, setter: setPauseSea, color: '#7E57C2' },
+                  { label: '属性球', value: pauseAtt, setter: setPauseAtt, color: '#5B9CF6' },
+                ].map(({ label, value, setter, color }) => (
+                  <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 12, fontWeight: 800, color, minWidth: 44, flexShrink: 0 }}>{label}</span>
+                    <input
+                      type="number" inputMode="numeric" min="0"
+                      value={value} onChange={e => setter(e.target.value)}
+                      placeholder="当前剩余" className="input-field" style={{ flex: 1, margin: 0 }}
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <input
+                type="number" inputMode="numeric" min="0"
+                value={pauseInput}
+                onChange={e => setPauseInput(e.target.value)}
+                placeholder="当前携带咕噜球数量"
+                autoFocus className="input-field"
+                onKeyDown={e => { if (e.key === 'Enter') handlePause(); }}
+              />
+            )}
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button
+                onClick={handlePause}
+                style={{
+                  flex: 1, padding: '12px 0', borderRadius: 'var(--radius-sm)',
+                  border: '2px solid #C8830A', background: '#C8830A',
+                  color: '#fff', fontWeight: 800, fontSize: 14,
+                  fontFamily: 'var(--font-body)', cursor: 'pointer',
+                }}
+              >确认暂停</button>
+              <button
+                onClick={() => { setShowPauseInput(false); setPauseInput(''); setPauseAdv(''); setPauseSea(''); setPauseAtt(''); }}
+                style={{
+                  padding: '12px 18px', borderRadius: 'var(--radius-sm)',
+                  border: '1.5px solid var(--divider)', background: 'var(--card-inner)',
+                  color: 'var(--text-muted)', fontWeight: 700, fontSize: 13,
+                  fontFamily: 'var(--font-body)', cursor: 'pointer',
+                }}
+              >取消</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 修改开始球数弹窗 */}
+      {showEditStart && (
+        <div
+          onClick={() => { setShowEditStart(false); setEditStartInput(''); setEditStartAdv(''); setEditStartSea(''); setEditStartAtt(''); }}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 200,
+            background: 'rgba(43,42,46,0.45)',
+            display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: 500,
+              background: '#FBF7EC', borderRadius: '16px 16px 0 0',
+              padding: '20px 20px 32px',
+              boxShadow: '0 -4px 24px rgba(43,42,46,0.18)',
+            }}
+          >
+            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 2 }}>修改开始球数</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 14, lineHeight: 1.6 }}>
+              中途去刷了别的精灵消耗了球？直接改成<strong>当前实际</strong>带的球数作为新起点。<br />
+              补球记录和暂停历史不会丢失。
+            </div>
+            {ballMode === 'byType' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {[
+                  { label: '高级球', value: editStartAdv, setter: setEditStartAdv, color: '#C8830A', cur: task.ballStartByType?.adv ?? 0 },
+                  { label: '赛季球', value: editStartSea, setter: setEditStartSea, color: '#7E57C2', cur: task.ballStartByType?.sea ?? 0 },
+                  { label: '属性球', value: editStartAtt, setter: setEditStartAtt, color: '#5B9CF6', cur: task.ballStartByType?.att ?? 0 },
+                ].map(({ label, value, setter, color, cur }) => (
+                  <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 12, fontWeight: 800, color, minWidth: 44, flexShrink: 0 }}>{label}</span>
+                    <input
+                      type="number" inputMode="numeric" min="0"
+                      value={value} onChange={e => setter(e.target.value)}
+                      placeholder={`当前 ${cur}`} className="input-field" style={{ flex: 1, margin: 0 }}
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <input
+                type="number" inputMode="numeric" min="0"
+                value={editStartInput}
+                onChange={e => setEditStartInput(e.target.value)}
+                placeholder={`当前起始 ${task.ballStart ?? ''} 个，填新值`}
+                autoFocus className="input-field"
+                onKeyDown={e => { if (e.key === 'Enter') handleEditStart(); }}
+              />
+            )}
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button
+                onClick={handleEditStart}
+                style={{
+                  flex: 1, padding: '12px 0', borderRadius: 'var(--radius-sm)',
+                  border: '2px solid #5B9CF6', background: '#5B9CF6',
+                  color: '#fff', fontWeight: 800, fontSize: 14,
+                  fontFamily: 'var(--font-body)', cursor: 'pointer',
+                }}
+              >确认修改</button>
+              <button
+                onClick={() => { setShowEditStart(false); setEditStartInput(''); setEditStartAdv(''); setEditStartSea(''); setEditStartAtt(''); }}
+                style={{
+                  padding: '12px 18px', borderRadius: 'var(--radius-sm)',
+                  border: '1.5px solid var(--divider)', background: 'var(--card-inner)',
+                  color: 'var(--text-muted)', fontWeight: 700, fontSize: 13,
+                  fontFamily: 'var(--font-body)', cursor: 'pointer',
+                }}
+              >取消</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 配置咕噜球弹窗（首次设置或旧 task 补填） */}
       {showBallSetup && (
         <div
@@ -550,16 +760,16 @@ export default function Recorder({ planId, navigate }) {
       {/* 触发污染色块（始终显示，0 条记录时显示空格子） */}
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-          <span style={{ fontSize: 13, fontWeight: 800 }}>触发污染记录</span>
-          <div style={{ display: 'flex', gap: 10, fontSize: 11, fontWeight: 600 }}>
+          <span className="font-subtitle" style={{ fontSize: 13, fontWeight: 800 }}>触发污染记录</span>
+          <div style={{ display: 'flex', gap: 10, fontSize: 11, fontWeight: 700 }}>
             <span style={{ color: 'var(--success)' }}>
-              原色精灵 {task.shieldBreaks.filter(b => b.result === 'original').length}
+              原色×{task.shieldBreaks.filter(b => b.result === 'original').length}
             </span>
             <span style={{ color: 'var(--polluted)' }}>
-              污染精灵 {task.shieldBreaks.filter(b => b.result === 'polluted').length}
+              污染×{task.shieldBreaks.filter(b => b.result === 'polluted').length}
             </span>
             <span style={{ color: 'var(--gold)' }}>
-              🌟异色精灵 {task.shieldBreaks.filter(b => b.result === 'shiny').length}
+              异色×{task.shieldBreaks.filter(b => b.result === 'shiny').length}
             </span>
           </div>
         </div>
@@ -583,9 +793,9 @@ export default function Recorder({ planId, navigate }) {
           </div>
           {/* 大数字 */}
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 2, marginBottom: 6 }}>
-            <span style={{
+            <span className="font-subtitle" style={{
               fontSize: 34, fontWeight: 900, lineHeight: 1,
-              color: progressColor, fontFamily: 'var(--font-display)',
+              color: progressColor,
             }}>{task.shieldBreakCount}</span>
             <span style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 600, marginLeft: 1 }}>/80</span>
           </div>
@@ -612,29 +822,56 @@ export default function Recorder({ planId, navigate }) {
         }}>
           {hasBallStart ? (
             <>
-              {/* 标题 + 右上角补球按钮 */}
+              {/* 标题 + 右上角操作按钮 */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
                 <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', letterSpacing: 0.3 }}>咕噜球</div>
-                <button
-                  onClick={() => ballMode === 'byType' ? setShowRestockByType(true) : setShowRestockInput(true)}
-                  style={{
-                    fontSize: 10, fontWeight: 800,
-                    padding: '2px 8px', borderRadius: 6,
-                    border: '1.5px solid rgba(75,156,70,0.5)',
-                    background: 'rgba(75,156,70,0.08)',
-                    color: 'var(--success)', cursor: 'pointer',
-                    fontFamily: 'var(--font-body)', lineHeight: 1.4,
-                  }}
-                >+ 补球</button>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button
+                    onClick={() => setShowPauseInput(true)}
+                    style={{
+                      fontSize: 10, fontWeight: 800,
+                      padding: '2px 7px', borderRadius: 6,
+                      border: '1.5px solid rgba(200,131,10,0.5)',
+                      background: 'rgba(200,131,10,0.08)',
+                      color: '#C8830A', cursor: 'pointer',
+                      fontFamily: 'var(--font-body)', lineHeight: 1.4,
+                    }}
+                  >⏸ 暂停</button>
+                  <button
+                    onClick={() => ballMode === 'byType' ? setShowRestockByType(true) : setShowRestockInput(true)}
+                    style={{
+                      fontSize: 10, fontWeight: 800,
+                      padding: '2px 7px', borderRadius: 6,
+                      border: '1.5px solid rgba(75,156,70,0.5)',
+                      background: 'rgba(75,156,70,0.08)',
+                      color: 'var(--success)', cursor: 'pointer',
+                      fontFamily: 'var(--font-body)', lineHeight: 1.4,
+                    }}
+                  >+ 补球</button>
+                </div>
               </div>
+              {/* 已消耗历史（有暂停记录时显示） */}
+              {pauseConsumedTotal > 0 && (
+                <div style={{
+                  marginBottom: 6, padding: '4px 8px', borderRadius: 6,
+                  background: 'rgba(200,131,10,0.08)',
+                  border: '1px solid rgba(200,131,10,0.25)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                }}>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: '#C8830A' }}>已消耗（{pauseSegments.length}段）</span>
+                  <span className="font-subtitle" style={{ fontSize: 13, fontWeight: 900, color: '#C8830A' }}>
+                    {pauseConsumedTotal}个
+                  </span>
+                </div>
+              )}
 
               {/* simple 模式：大数字 */}
               {ballMode === 'simple' && (
                 <>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 2, marginBottom: 6 }}>
-                    <span style={{
+                    <span className="font-subtitle" style={{
                       fontSize: 34, fontWeight: 900, lineHeight: 1,
-                      color: '#2B2A2E', fontFamily: 'var(--font-display)',
+                      color: '#2B2A2E',
                     }}>{task.ballStart}</span>
                     {restockTotal > 0 && (
                       <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--success)', marginLeft: 4 }}>
@@ -643,7 +880,19 @@ export default function Recorder({ planId, navigate }) {
                     )}
                   </div>
                   <div style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.7 }}>
-                    <div>开始球数</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span>开始球数</span>
+                      <button
+                        onClick={() => { setEditStartInput(String(task.ballStart ?? '')); setShowEditStart(true); }}
+                        style={{
+                          fontSize: 9, padding: '1px 4px', borderRadius: 4,
+                          border: '1px solid rgba(91,156,246,0.5)',
+                          background: 'rgba(91,156,246,0.08)',
+                          color: '#5B9CF6', cursor: 'pointer',
+                          fontFamily: 'var(--font-body)', lineHeight: 1.4, fontWeight: 700,
+                        }}
+                      >✎ 改</button>
+                    </div>
                     {ballRestocks.length > 0 && (
                       <div style={{ color: 'var(--success)', fontWeight: 700 }}>
                         补球 {ballRestocks.length} 次
@@ -666,14 +915,31 @@ export default function Recorder({ planId, navigate }) {
                     return (
                       <div key={key} style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
                         <span style={{ fontSize: 10, fontWeight: 800, color, minWidth: 14 }}>{label}</span>
-                        <span style={{ fontSize: 16, fontWeight: 900, color: '#2B2A2E', fontFamily: 'var(--font-display)', lineHeight: 1 }}>{sv}</span>
+                        <span className="font-subtitle" style={{ fontSize: 16, fontWeight: 900, color: '#2B2A2E', lineHeight: 1 }}>{sv}</span>
                         {rv > 0 && <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--success)' }}>+{rv}</span>}
                       </div>
                     );
                   })}
-                  {ballRestocks.length > 0 && (
-                    <div style={{ fontSize: 10, color: 'var(--success)', fontWeight: 700, marginTop: 2 }}>补球 {ballRestocks.length} 次</div>
-                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
+                    {ballRestocks.length > 0 && (
+                      <span style={{ fontSize: 10, color: 'var(--success)', fontWeight: 700 }}>补球 {ballRestocks.length} 次</span>
+                    )}
+                    <button
+                      onClick={() => {
+                        setEditStartAdv(String(task.ballStartByType?.adv ?? ''));
+                        setEditStartSea(String(task.ballStartByType?.sea ?? ''));
+                        setEditStartAtt(String(task.ballStartByType?.att ?? ''));
+                        setShowEditStart(true);
+                      }}
+                      style={{
+                        fontSize: 9, padding: '1px 4px', borderRadius: 4,
+                        border: '1px solid rgba(91,156,246,0.5)',
+                        background: 'rgba(91,156,246,0.08)',
+                        color: '#5B9CF6', cursor: 'pointer',
+                        fontFamily: 'var(--font-body)', lineHeight: 1.4, fontWeight: 700,
+                      }}
+                    >✎ 改起始</button>
+                  </div>
                 </div>
               )}
 
@@ -713,11 +979,13 @@ export default function Recorder({ planId, navigate }) {
 
       {/* 三池机制说明 */}
       <div style={{
+        position: 'relative',
         margin: '4px 16px 16px',
         borderRadius: 12,
-        border: '1.5px solid rgba(103,93,83,0.18)',
-        background: '#F8F4EC',
         overflow: 'hidden',
+        backgroundImage: `url(${import.meta.env.BASE_URL}card-frame-compact.png)`,
+        backgroundSize: '100% 100%',
+        backgroundRepeat: 'no-repeat',
       }}>
         {/* 标题栏 */}
         <div style={{
@@ -795,6 +1063,77 @@ export default function Recorder({ planId, navigate }) {
       )}
       {showShinySelect && (
         <ShinySelectModal plan={plan} onSelect={handleShinySelect} onClose={() => setShowShinySelect(false)} hasTabBar={false} />
+      )}
+
+      {/* 删除确认弹窗 */}
+      {showAbandonConfirm && (
+        <div
+          onClick={() => setShowAbandonConfirm(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 300,
+            background: 'rgba(43,42,46,0.55)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '0 32px',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: 320,
+              background: '#FBF7EC',
+              borderRadius: 16,
+              padding: '24px 20px 20px',
+              boxShadow: '0 8px 32px rgba(43,42,46,0.22)',
+            }}
+          >
+            {/* 图标 + 标题 */}
+            <div style={{ textAlign: 'center', marginBottom: 10 }}>
+              <div style={{ fontSize: 28, lineHeight: 1, marginBottom: 8 }}>🗑️</div>
+              <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--danger)', fontFamily: 'var(--font-display)' }}>
+                确认删除刷取记录？
+              </div>
+            </div>
+            {/* 提示文案 */}
+            <div style={{
+              fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.7,
+              textAlign: 'center', marginBottom: 20,
+              padding: '10px 8px',
+              background: 'rgba(200,53,26,0.06)',
+              borderRadius: 8,
+              border: '1px solid rgba(200,53,26,0.15)',
+            }}>
+              删除后该记录<strong style={{ color: 'var(--danger)' }}>无法找回</strong>，<br />
+              包括已记录的触发污染次数和球数数据。
+            </div>
+            {/* 按钮组 */}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => setShowAbandonConfirm(false)}
+                style={{
+                  flex: 1, padding: '12px 0',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1.5px solid var(--divider)',
+                  background: 'var(--card-inner)',
+                  color: 'var(--text-muted)',
+                  fontWeight: 700, fontSize: 14,
+                  fontFamily: 'var(--font-body)', cursor: 'pointer',
+                }}
+              >再想想</button>
+              <button
+                onClick={handleAbandonConfirmed}
+                style={{
+                  flex: 1, padding: '12px 0',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '2px solid var(--danger)',
+                  background: 'var(--danger)',
+                  color: '#fff',
+                  fontWeight: 800, fontSize: 14,
+                  fontFamily: 'var(--font-body)', cursor: 'pointer',
+                }}
+              >确认删除</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

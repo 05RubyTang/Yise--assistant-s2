@@ -111,7 +111,7 @@ export default function AttrPlanDetail({ planId, navigate, goBack }) {
     <div style={{ paddingBottom: 0 }}>
       {/* 顶部 */}
       <div className="page-header">
-        <button className="back-btn" onClick={goBack}><img src={`${import.meta.env.BASE_URL}back-icon.png`} alt="返回" /></button>
+        <button className="back-btn" onClick={goBack}><img src={`${import.meta.env.BASE_URL}back-icon.webp`} alt="返回" /></button>
         <span className="page-header-title">
           {defaultPlan.type}方案
         </span>

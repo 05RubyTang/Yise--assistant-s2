@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../store';
-import { PLANS, POOL_TYPE_CONFIG } from '../data/plans';
+import { PLANS, POOL_TYPE_CONFIG, resolvePlanIconImg } from '../data/plans';
 import SpiritAvatar from '../components/SpiritAvatar';
 import PlanIcon from '../components/PlanIcon';
 
@@ -52,7 +52,7 @@ export default function Report({ planId, spiritName, resultType, navigate }) {
     ...rawPlan,
     type:    rawPlan.type    || rawPlan.label || '自定义方案',
     shinies: Array.isArray(rawPlan.shinies) ? rawPlan.shinies : [],
-    iconImg: rawPlan.iconImg || attrBase?.iconImg || null,
+    iconImg: resolvePlanIconImg(rawPlan, attrBase),
     icon:    rawPlan.icon    || attrBase?.icon    || '✨',
   } : {
     // planId 找不到时的最终兜底（不应发生，但保证页面不白屏）
@@ -76,6 +76,8 @@ export default function Report({ planId, spiritName, resultType, navigate }) {
 
   const ballMode = task.ballMode || 'simple';
   const ballRestocks = task.ballRestocks || [];
+  const pauseSegments = task.pauseSegments || [];
+  const pauseConsumedTotal = pauseSegments.reduce((s, seg) => s + (seg.consumed || 0), 0);
 
   // simple 模式计算
   // 兼容旧 task（无 ballStart 字段）：有补球记录也视为「已配置」
@@ -84,9 +86,11 @@ export default function Report({ planId, spiritName, resultType, navigate }) {
     : (task.ballStart != null || ballRestocks.length > 0);
   const restockTotal = ballRestocks.reduce((s, r) => s + (r.amount || 0), 0);
   const ballEnd = ballInput.trim() ? parseInt(ballInput.trim(), 10) : null;
-  const ballsUsed = (ballMode === 'simple' && hasBallStart && ballEnd != null && !isNaN(ballEnd))
+  // 当前段消耗 + 历史暂停段消耗
+  const curSegUsed = (ballMode === 'simple' && hasBallStart && ballEnd != null && !isNaN(ballEnd))
     ? task.ballStart + restockTotal - ballEnd
     : null;
+  const ballsUsed = curSegUsed != null ? curSegUsed + pauseConsumedTotal : null;
 
   // byType 模式计算
   const bst = task.ballStartByType || { adv: 0, sea: 0, att: 0 };
@@ -100,16 +104,33 @@ export default function Report({ planId, spiritName, resultType, navigate }) {
     att: ballEndAtt.trim() ? parseInt(ballEndAtt.trim(), 10) : null,
   };
   const hasByTypeEnd = bet.adv != null || bet.sea != null || bet.att != null;
-  const ballsUsedByType = (ballMode === 'byType' && hasBallStart && hasByTypeEnd) ? {
+  // byType：当前段消耗
+  const curSegUsedByType = (ballMode === 'byType' && hasBallStart && hasByTypeEnd) ? {
     adv: bst.adv + restByType.adv - (bet.adv ?? 0),
     sea: bst.sea + restByType.sea - (bet.sea ?? 0),
     att: bst.att + restByType.att - (bet.att ?? 0),
+  } : null;
+  // byType：历史暂停段消耗（按各类型累加）
+  // 每段结构：{ adv, sea, att, consumed, time }（byType 模式下 store 存的就是分球数据）
+  const pauseConsumedByType = pauseSegments.reduce(
+    (s, seg) => ({
+      adv: s.adv + (seg.adv ?? 0),
+      sea: s.sea + (seg.sea ?? 0),
+      att: s.att + (seg.att ?? 0),
+    }),
+    { adv: 0, sea: 0, att: 0 }
+  );
+  const ballsUsedByType = curSegUsedByType ? {
+    adv: curSegUsedByType.adv + pauseConsumedByType.adv,
+    sea: curSegUsedByType.sea + pauseConsumedByType.sea,
+    att: curSegUsedByType.att + pauseConsumedByType.att,
   } : null;
   const ballsUsedByTypeTotal = ballsUsedByType
     ? ballsUsedByType.adv + ballsUsedByType.sea + ballsUsedByType.att
     : null;
 
   const handleSave = () => {
+    const taskId = task.id;
     if (ballMode === 'byType') {
       dispatch({ type: 'COMPLETE_TASK', planId, spiritName, resultType,
         ballEndByType: hasByTypeEnd ? { adv: bet.adv ?? 0, sea: bet.sea ?? 0, att: bet.att ?? 0 } : null });
@@ -117,7 +138,7 @@ export default function Report({ planId, spiritName, resultType, navigate }) {
       dispatch({ type: 'COMPLETE_TASK', planId, spiritName, resultType,
         ballEnd: (ballEnd && !isNaN(ballEnd)) ? ballEnd : null });
     }
-    navigate('home');
+    navigate('history', { openTaskId: taskId });
   };
   const handleContinue = (resetBreaks) => {
     if (ballMode === 'byType') {
@@ -193,7 +214,7 @@ export default function Report({ planId, spiritName, resultType, navigate }) {
               padding: 12, position: 'relative',
             }}>
               <img
-                src={`${import.meta.env.BASE_URL}spirits/${encodeURIComponent(SPIRIT_IMG_FILE[spiritName] || spiritName)}.png`}
+                src={`${import.meta.env.BASE_URL}spirits/${encodeURIComponent(SPIRIT_IMG_FILE[spiritName] || spiritName)}.webp`}
                 alt={spiritName}
                 style={{ width: 96, height: 96, objectFit: 'contain' }}
                 onError={e => { e.target.style.display = 'none'; }}
@@ -205,11 +226,10 @@ export default function Report({ planId, spiritName, resultType, navigate }) {
                 filter: 'drop-shadow(0 0 4px rgba(251,200,57,0.9))',
               }}>✨</div>
               {/* 精灵名 */}
-              <div style={{
+              <div className="font-spirit" style={{
                 position: 'absolute', bottom: 8, left: 0, right: 0,
                 textAlign: 'center',
                 fontSize: 11, fontWeight: 900, color: '#2B2A2E',
-                fontFamily: 'var(--font-display)',
               }}>{spiritName}</div>
             </div>
 
@@ -237,7 +257,7 @@ export default function Report({ planId, spiritName, resultType, navigate }) {
               </Row>
 
               <Row label="触发污染次数">
-                <span style={{ color: 'var(--cta)', fontWeight: 900, fontSize: 16, fontFamily: 'var(--font-display)' }}>
+                <span className="font-subtitle" style={{ color: 'var(--cta)', fontWeight: 900, fontSize: 16 }}>
                   {task.shieldBreakCount}
                 </span>
                 <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 11 }}>/80</span>
@@ -273,7 +293,7 @@ export default function Report({ planId, spiritName, resultType, navigate }) {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
               <img
-                src={`${import.meta.env.BASE_URL}section-title-banner.png`}
+                src={`${import.meta.env.BASE_URL}section-title-banner.webp`}
                 alt=""
                 style={{
                   position: 'absolute', inset: 0,
@@ -298,10 +318,38 @@ export default function Report({ planId, spiritName, resultType, navigate }) {
 
               {ballMode === 'simple' ? (
                 <>
+                  {/* 历史暂停段展示 */}
+                  {pauseSegments.length > 0 && (
+                    <div style={{
+                      marginBottom: 8, padding: '6px 10px', borderRadius: 8,
+                      background: 'rgba(200,131,10,0.07)', border: '1px solid rgba(200,131,10,0.22)',
+                    }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#C8830A', marginBottom: 3 }}>
+                        历史暂停段（共 {pauseSegments.length} 次）
+                      </div>
+                      {pauseSegments.map((seg, i) => (
+                        <div key={i} style={{
+                          display: 'flex', justifyContent: 'space-between',
+                          fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.7,
+                        }}>
+                          <span>第 {i + 1} 段</span>
+                          <span style={{ fontWeight: 700, color: '#C8830A' }}>消耗 {seg.consumed} 个</span>
+                        </div>
+                      ))}
+                      <div style={{
+                        borderTop: '1px dashed rgba(200,131,10,0.25)', marginTop: 3, paddingTop: 3,
+                        display: 'flex', justifyContent: 'space-between',
+                        fontSize: 10, fontWeight: 800, color: '#C8830A',
+                      }}>
+                        <span>历史小计</span>
+                        <span>{pauseConsumedTotal} 个</span>
+                      </div>
+                    </div>
+                  )}
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.6 }}>
                     {hasBallStart ? (
                       <>
-                        开始 <strong>{task.ballStart}</strong> 个
+                        当前段：开始 <strong>{task.ballStart}</strong> 个
                         {restockTotal > 0 && <> + 补球 <strong style={{ color: 'var(--success)' }}>{restockTotal}</strong> 个</>}
                         {' '}− 剩余 = 消耗
                       </>
@@ -321,9 +369,11 @@ export default function Report({ planId, spiritName, resultType, navigate }) {
                       background: '#FFF9E0', border: '1px solid #C8A020',
                     }}>
                       <span style={{ fontSize: 12, color: 'var(--text-light)' }}>
-                        {hasBallStart && restockTotal > 0
-                          ? `${task.ballStart} + ${restockTotal} − ${ballEnd} =`
-                          : '本次消耗'}
+                        {pauseConsumedTotal > 0
+                          ? `当前段 ${curSegUsed} + 历史 ${pauseConsumedTotal} =`
+                          : (hasBallStart && restockTotal > 0
+                              ? `${task.ballStart} + ${restockTotal} − ${ballEnd} =`
+                              : '本次消耗')}
                       </span>
                       <span style={{ fontSize: 15, fontWeight: 900, color: 'var(--cta)' }}>{ballsUsed} 个咕噜球</span>
                     </div>
@@ -332,8 +382,39 @@ export default function Report({ planId, spiritName, resultType, navigate }) {
               ) : (
                 /* byType 模式 */
                 <>
+                  {/* 历史暂停段展示（byType 分球明细） */}
+                  {pauseSegments.length > 0 && (
+                    <div style={{
+                      marginBottom: 8, padding: '6px 10px', borderRadius: 8,
+                      background: 'rgba(200,131,10,0.07)', border: '1px solid rgba(200,131,10,0.22)',
+                    }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#C8830A', marginBottom: 4 }}>
+                        历史暂停段（共 {pauseSegments.length} 次）
+                      </div>
+                      {/* 分球类型明细 */}
+                      <div style={{ display: 'flex', gap: 10 }}>
+                        {[
+                          { label: '高级球', val: pauseConsumedByType.adv, color: '#C8830A' },
+                          { label: '赛季球', val: pauseConsumedByType.sea, color: '#7E57C2' },
+                          { label: '属性球', val: pauseConsumedByType.att, color: '#5B9CF6' },
+                        ].map(({ label, val, color }) => (
+                          <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
+                            <span style={{ fontSize: 9, fontWeight: 700, color, marginBottom: 1 }}>{label}</span>
+                            <span className="font-subtitle" style={{ fontSize: 13, fontWeight: 900, color }}>{val}</span>
+                          </div>
+                        ))}
+                        <div style={{
+                          width: 1, background: 'rgba(200,131,10,0.2)', flexShrink: 0, margin: '0 2px',
+                        }} />
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
+                          <span style={{ fontSize: 9, fontWeight: 700, color: '#C8830A', marginBottom: 1 }}>合计</span>
+                          <span className="font-subtitle" style={{ fontSize: 13, fontWeight: 900, color: '#C8830A' }}>{pauseConsumedTotal}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.6 }}>
-                    填入各类剩余球数，自动计算每类消耗（选填）
+                    填入本轮结束时各类剩余球数（选填）
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {[
@@ -342,7 +423,8 @@ export default function Report({ planId, spiritName, resultType, navigate }) {
                       { label: '属性球', key: 'att', value: ballEndAtt, setter: setBallEndAtt, color: '#5B9CF6', startVal: bst.att, restVal: restByType.att },
                     ].map(({ label, key, value, setter, color, startVal, restVal }) => {
                       const endVal = value.trim() ? parseInt(value.trim(), 10) : null;
-                      const used = endVal != null && !isNaN(endVal) ? startVal + restVal - endVal : null;
+                      // 只算当前段：startVal + restVal - endVal
+                      const curUsed = endVal != null && !isNaN(endVal) ? startVal + restVal - endVal : null;
                       return (
                         <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div style={{ minWidth: 42, flexShrink: 0 }}>
@@ -358,30 +440,52 @@ export default function Report({ planId, spiritName, resultType, navigate }) {
                             className="input-field"
                             style={{ flex: 1, margin: 0, background: '#FBF7EC' }}
                           />
-                          {used != null && used >= 0 && (
-                            <span style={{ fontSize: 13, fontWeight: 900, color: 'var(--cta)', minWidth: 36, textAlign: 'right', flexShrink: 0 }}>
-                              -{used}
-                            </span>
-                          )}
+                          {/* 固定宽度容器，始终占位，保证三行 input 等宽对齐；只显示当前段消耗 */}
+                          <div style={{ width: 46, flexShrink: 0, textAlign: 'right' }}>
+                            {curUsed != null && curUsed >= 0 && (
+                              <span style={{ fontSize: 13, fontWeight: 900, color: 'var(--cta)' }}>
+                                -{curUsed}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
                   </div>
+                  {/* 合计：当前段 + 历史暂停段，分类展示 */}
                   {ballsUsedByTypeTotal != null && ballsUsedByTypeTotal >= 0 && (
                     <div style={{
-                      marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '8px 12px', borderRadius: 8,
+                      marginTop: 10, padding: '8px 12px', borderRadius: 8,
                       background: '#FFF9E0', border: '1px solid #C8A020',
                     }}>
-                      <span style={{ fontSize: 12, color: 'var(--text-light)' }}>
-                        合计消耗
-                        {ballsUsedByType && (
-                          <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 4 }}>
-                            （高{ballsUsedByType.adv} + 赛{ballsUsedByType.sea} + 属{ballsUsedByType.att}）
-                          </span>
-                        )}
-                      </span>
-                      <span style={{ fontSize: 15, fontWeight: 900, color: 'var(--cta)' }}>{ballsUsedByTypeTotal} 个咕噜球</span>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: pauseSegments.length > 0 ? 6 : 0 }}>
+                        <span style={{ fontSize: 12, color: 'var(--text-light)' }}>合计消耗</span>
+                        <span style={{ fontSize: 15, fontWeight: 900, color: 'var(--cta)' }}>{ballsUsedByTypeTotal} 个咕噜球</span>
+                      </div>
+                      {/* 分球明细行（仅 byType 有意义时展示） */}
+                      {ballsUsedByType && (
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          {[
+                            { label: '高', val: ballsUsedByType.adv, color: '#C8830A' },
+                            { label: '赛', val: ballsUsedByType.sea, color: '#7E57C2' },
+                            { label: '属', val: ballsUsedByType.att, color: '#5B9CF6' },
+                          ].map(({ label, val, color }) => (
+                            <div key={label} style={{
+                              flex: 1, textAlign: 'center',
+                              padding: '3px 0', borderRadius: 5,
+                              background: 'rgba(103,93,83,0.06)',
+                            }}>
+                              <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-muted)' }}>{label} </span>
+                              <span className="font-subtitle" style={{ fontSize: 12, fontWeight: 900, color }}>{val}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {pauseSegments.length > 0 && (
+                        <div style={{ fontSize: 10, color: '#C8830A', fontWeight: 600, marginTop: 4 }}>
+                          ↳ 含 {pauseSegments.length} 次暂停历史段消耗 {pauseConsumedTotal} 个
+                        </div>
+                      )}
                     </div>
                   )}
                 </>
@@ -393,13 +497,13 @@ export default function Report({ planId, spiritName, resultType, navigate }) {
           <div style={{ padding: '12px 16px 28px', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <button
               className="btn btn-gold"
-              onClick={handleSave}
-              style={{ width: '100%', margin: 0 }}
-            >
-              📖 保存并结束
+                onClick={handleSave}
+                style={{ width: '100%', margin: 0 }}
+              >
+                📖 保存并查看
             </button>
 
-            {/* 继续刷取：两个选项让用户决定是否清空记录 */}
+            {/* 继续刷取：默认只清出货池，可选三池全清 */}
             <div style={{
               border: '1.5px solid rgba(103,93,83,0.2)',
               borderRadius: 12, overflow: 'hidden',
@@ -411,42 +515,44 @@ export default function Report({ planId, spiritName, resultType, navigate }) {
                 fontSize: 11, fontWeight: 700, color: 'var(--text-light)',
                 textAlign: 'center', lineHeight: 1.5,
               }}>
-                继续刷取 · 是否清空当前触发污染记录？
+                继续刷取 · 出货池自动归零，其余池进度保留
                 <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 500, marginTop: 2 }}>
                   {(resultType === 'family' || resultType === 'pool')
-                    ? '家族池出货，建议清空重新计数'
-                    : `${resultType === 'attr' ? '属性池' : '世界池'}出货，家族池进度未重置，可保留继续`}
+                    ? '家族池归零，系别池 / 世界池进度保留'
+                    : resultType === 'attr'
+                      ? '系别池归零，家族池 / 世界池进度保留'
+                      : '世界池归零，家族池 / 系别池进度保留'}
                 </div>
               </div>
               {/* 两个选项按钮 */}
               <div style={{ display: 'flex' }}>
                 <button
-                  onClick={() => handleContinue(true)}
+                  onClick={() => handleContinue(false)}
                   style={{
                     flex: 1, padding: '11px 8px',
                     border: 'none', borderRight: '1px solid rgba(103,93,83,0.15)',
+                    background: '#fff',
+                    fontSize: 12, fontWeight: 800, color: '#2B6A2E',
+                    fontFamily: 'var(--font-body)', cursor: 'pointer',
+                    lineHeight: 1.4,
+                  }}
+                >
+                  ▶ 继续刷取（推荐）<br />
+                  <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--text-muted)' }}>仅清空出货池进度</span>
+                </button>
+                <button
+                  onClick={() => handleContinue(true)}
+                  style={{
+                    flex: 1, padding: '11px 8px',
+                    border: 'none',
                     background: '#fff',
                     fontSize: 12, fontWeight: 800, color: '#C8351A',
                     fontFamily: 'var(--font-body)', cursor: 'pointer',
                     lineHeight: 1.4,
                   }}
                 >
-                  🔄 清空记录<br />
+                  🗑️ 三池全清<br />
                   <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--text-muted)' }}>重新从 0 开始</span>
-                </button>
-                <button
-                  onClick={() => handleContinue(false)}
-                  style={{
-                    flex: 1, padding: '11px 8px',
-                    border: 'none',
-                    background: '#fff',
-                    fontSize: 12, fontWeight: 800, color: '#2B2A2E',
-                    fontFamily: 'var(--font-body)', cursor: 'pointer',
-                    lineHeight: 1.4,
-                  }}
-                >
-                  ▶ 保留进度<br />
-                  <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--text-muted)' }}>继续累积保底</span>
                 </button>
               </div>
             </div>

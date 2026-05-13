@@ -36,17 +36,17 @@ const RESEND_CD = 60;
 const MODE_CONFIG = {
   bind: {
     title: '📧 绑定邮箱',
-    desc: '绑定邮箱后，换手机或重装也能一键恢复全部数据，历史记录和收集进度一条不丢。',
+    desc: '绑定成功后数据支持跨设备登录，仅限从未绑定过账号的邮箱使用。',
     verifyBtn: '确认绑定',
   },
   login: {
     title: '🔑 找回账号',
-    desc: '输入你之前绑定的邮箱，验证成功后此设备的数据会与云端记录合并，两边进度都保留。',
+    desc: '输入你之前绑定的邮箱，推荐当前设备已经有正在进行刷取中的用户使用。',
     verifyBtn: '确认找回',
   },
   switch: {
     title: '🔄 切换账号',
-    desc: '输入另一个已绑定账号的邮箱，验证后此设备将切换到该账号。当前设备的数据不会合并过去，请放心。',
+    desc: '输入另一个已绑定账号的邮箱，验证后此设备将切换到该账号，推荐换端登录使用。',
     verifyBtn: '确认切换',
   },
 };
@@ -222,22 +222,6 @@ export default function BindEmailModal({ onClose, onSuccess, initialMode = 'bind
               </div>
 
               <p className="modal-desc">{cfg.desc}</p>
-
-              {/* 切换账号额外提示 */}
-              {mode === 'switch' && (
-                <div style={{
-                  margin: '0 0 10px',
-                  padding: '9px 12px',
-                  borderRadius: 9,
-                  background: '#FFF8E1',
-                  border: '1.5px solid rgba(255,193,7,0.4)',
-                  fontSize: 12,
-                  color: '#795548',
-                  lineHeight: 1.6,
-                }}>
-                  💡 切换后此设备将只显示目标账号的数据。当前设备若有未绑定的记录，建议先用「绑定邮箱」保存。
-                </div>
-              )}
 
               <form onSubmit={handleSubmit}>
                 <div className="input-group">

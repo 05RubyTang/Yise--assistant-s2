@@ -16,7 +16,7 @@ function SpiritImg({ name, size = 80 }) {
       overflow: 'hidden',
     }}>
       <img
-        src={`${base}spirits/${encodeURIComponent(name)}.png`}
+        src={`${base}spirits/${encodeURIComponent(name)}.webp`}
         alt={name}
         style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 5, boxSizing: 'border-box' }}
         onError={e => { e.currentTarget.parentElement.style.display = 'none'; }}
@@ -232,7 +232,7 @@ export default function SpecialForms({ goBack }) {
   return (
     <div style={{ paddingBottom: 32 }}>
       <div className="page-header">
-        <button className="back-btn" onClick={goBack}><img src={`${import.meta.env.BASE_URL}back-icon.png`} alt="返回" /></button>
+        <button className="back-btn" onClick={goBack}><img src={`${import.meta.env.BASE_URL}back-icon.webp`} alt="返回" /></button>
         <span className="page-header-title">特殊形态精灵攻略</span>
       </div>
 

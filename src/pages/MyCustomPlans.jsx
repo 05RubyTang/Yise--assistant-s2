@@ -128,7 +128,7 @@ export default function MyCustomPlans({ goBack }) {
             display: 'flex', alignItems: 'center',
             fontFamily: 'var(--font-body)', fontWeight: 700,
           }}
-        ><img src={`${import.meta.env.BASE_URL}back-icon.png`} alt="返回" style={{ width: 36, height: 36 }} /></button>
+        ><img src={`${import.meta.env.BASE_URL}back-icon.webp`} alt="返回" style={{ width: 36, height: 36 }} /></button>
         <h2 style={{ flex: 1 }}>我的自定义方案</h2>
       </div>
 

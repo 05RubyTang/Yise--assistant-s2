@@ -7,7 +7,14 @@ import BindEmailModal from '../components/BindEmailModal';
 const getModalRoot = () => document.getElementById('modal-root') || document.body;
 import PlanIcon from '../components/PlanIcon';
 import SpiritAvatar from '../components/SpiritAvatar';
-import { PLANS, ALL_SHINIES, inferPoolType, POOL_TYPE_CONFIG } from '../data/plans';
+import ShieldDots from '../components/ShieldDots';
+import { PLANS, ALL_SHINIES, inferPoolType, POOL_TYPE_CONFIG, getBallBySpirit, getBallByPlan, getAttrIdBySpirit, getPlanAttrId, computeFamilyPool } from '../data/plans';
+
+// 模块加载时计算一次，每次 Vite 重新构建值变化 → 强制浏览器放弃旧缓存
+const _HERO_CARD_V = Date.now();
+
+// poolType → 出货池图片文件名映射（attr/offpool 都指向属系池图）
+const POOL_IMG = { family: 'pool-family', attr: 'pool-attr', offpool: 'pool-attr', world: 'pool-world', pool: 'pool-family' };
 
 // ─── 工具函数 ─────────────────────────────────────────────────────────────────
 
@@ -22,14 +29,368 @@ function formatDateTime(isoStr) {
   return `${yyyy}-${mm}-${dd} · ${hh}:${mi}`;
 }
 
+function getStarRating(breakCount) {
+  if (breakCount == null) return null;
+  if (breakCount <= 10) return { stars: 5, label: '超级欧皇', color: '#C8830A' };
+  if (breakCount <= 20) return { stars: 4, label: '欧皇',     color: '#C8830A' };
+  if (breakCount <= 40) return { stars: 3, label: '正常发挥', color: '#4B9C46' };
+  if (breakCount <= 55) return { stars: 2, label: '有点非',   color: '#8B4BB8' };
+  if (breakCount <= 79) return { stars: 1, label: '非酋',     color: '#D4560A' };
+  return { stars: 0, label: '极限保底', color: '#C8351A' };
+}
+
+function Stars({ count, color }) {
+  return (
+    <span style={{ color, fontSize: 13, letterSpacing: 1 }}>
+      {'★'.repeat(count)}{'☆'.repeat(5 - count)}
+    </span>
+  );
+}
+
+function DetailRow({ label, children }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '8px 0',
+      borderBottom: '1px solid rgba(103,93,83,0.1)',
+    }}>
+      <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>{label}</span>
+      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 4 }}>
+        {children}
+      </span>
+    </div>
+  );
+}
+
 function parseNonNeg(str) {
   const n = parseInt(str.trim(), 10);
   return (str.trim() !== '' && !isNaN(n) && n >= 0) ? n : null;
 }
 
+// ─── 刷取详情全页面 ───────────────────────────────────────────────────────────
+
+function TaskDetailPage({ task, onBack, userPlanConfig }) {
+  useEffect(() => {
+    document.body.classList.add('hide-scrollbar');
+    return () => document.body.classList.remove('hide-scrollbar');
+  }, []);
+
+  const base = import.meta.env.BASE_URL;
+  const plan = PLANS.find(p => p.id === task.planId)
+    || (userPlanConfig || []).find(p => p.id === task.planId) || null;
+  const isManual = task.resultType === 'manual';
+  const isSuccess = task.resultType !== 'abandoned';
+  const poolType = isSuccess && !isManual ? inferPoolType(task, plan) : null;
+  const poolCfg  = poolType ? (POOL_TYPE_CONFIG[poolType] || POOL_TYPE_CONFIG.world) : null;
+  const breakdowns = task.breakdowns || {};
+  const polluted = breakdowns.polluted || 0;
+  const original = breakdowns.original || 0;
+  const shiny    = breakdowns.shiny    || 0;
+  const hasShieldBreaks = task.shieldBreaks && task.shieldBreaks.length > 0;
+
+  // 属性球信息（根据出货精灵属性动态）
+  // 属性球跟随方案的果实精灵（spiritA），而非出货精灵的属性
+  // 例：菊花梨方案（萌系）全程抓菊花梨消耗美妙球，即便最终出货的是治愈兔（火系）
+  const ballInfo = getBallByPlan(plan) || (task.resultSpirit ? getBallBySpirit(task.resultSpirit) : null);
+  // 属系 icon
+  const attrId = task.resultSpirit ? getAttrIdBySpirit(task.resultSpirit) : null;
+  const isFamilyPool = poolType === 'family';
+
+  // 欧非称号图片（仅非手动且有破盾数时展示）
+  const luckImg = (() => {
+    if (isManual || task.shieldBreakCount == null) return null;
+    const n = task.shieldBreakCount;
+    if (n <= 10) return 'luck-1.png'; // 锦鲤本鲤
+    if (n <= 22) return 'luck-2.png'; // 欧皇附体
+    if (n <= 35) return 'luck-3.png'; // 略有天赋
+    if (n <= 52) return 'luck-4.png'; // 世界平均
+    if (n <= 64) return 'luck-5.png'; // 望穿秋水
+    if (n <= 74) return 'luck-6.png'; // 非酋觉醒
+    return             'luck-7.png';  // 保底战士
+  })();
+
+  return (
+    /* ── 最外层：fixed 全屏容器，flex 纵向 ── */
+    <div style={{
+      position: 'fixed', inset: 0,
+      display: 'flex', flexDirection: 'column',
+      background: '#EBC858',
+      overflow: 'hidden',
+    }}>
+      {/* 背景图层（absolute，随容器大小） */}
+      <img
+        src={`${base}detail-bg.png?v=20260510b`}
+        alt="" aria-hidden
+        style={{
+          position: 'absolute', top: 0, left: '50%',
+          transform: 'translateX(-50%)',
+          width: '96%', height: '100%',
+          objectFit: 'fill',
+          zIndex: 0, pointerEvents: 'none',
+        }}
+      />
+
+      {/* ── 固定顶部区（不随滚动变化） ── */}
+      <div style={{ position: 'relative', zIndex: 1, flexShrink: 0 }}>
+        {/* 顶部导航栏 */}
+        <div style={{
+          display: 'flex', alignItems: 'center',
+          padding: '12px 16px 10px',
+          gap: 8,
+        }}>
+          <button
+            onClick={onBack}
+            style={{
+              background: 'none', border: 'none', borderRadius: 20,
+              padding: '6px 14px 6px 10px',
+              display: 'flex', alignItems: 'center', gap: 4,
+              cursor: 'pointer', fontFamily: 'var(--font-body)',
+            }}
+          >
+            <img src={`${base}back-icon.webp`} alt="" style={{ width: 20, height: 20 }} />
+            <span style={{ fontSize: 13, fontWeight: 800, color: '#2B2A2E' }}>返回</span>
+          </button>
+          <span style={{
+            flex: 1, textAlign: 'center',
+            fontSize: 16, fontWeight: 900, color: '#2B2A2E',
+            fontFamily: 'var(--font-display)',
+          }}>刷取详情</span>
+          <div style={{ width: 70 }} />
+        </div>
+
+        {/* Hero Card */}
+        {isSuccess && (
+          <div style={{
+            margin: '0 16px 0',
+            borderRadius: 20,
+            position: 'relative',
+            aspectRatio: '916 / 498',
+            overflow: 'visible',
+          }}>
+            <img
+              src={`${base}detail-hero-card.png?v=${_HERO_CARD_V}`}
+              alt=""
+              style={{
+                position: 'absolute', inset: 0,
+                width: '100%', height: '100%',
+                objectFit: 'fill',
+                borderRadius: 20,
+              }}
+            />
+            <div style={{
+              position: 'absolute', inset: 0, zIndex: 1,
+              display: 'flex', alignItems: 'stretch',
+            }}>
+              {/* 左：精灵图 */}
+              <div style={{
+                width: 140, flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                padding: '12px 4px',
+                marginLeft: 12,
+                position: 'relative',
+              }}>
+                <SpiritAvatar bare name={task.resultSpirit} obtained size={118} />
+                {/* 欧非称号贴片：精灵图左下角，突破卡片边界 */}
+                {luckImg && (
+                  <img
+                    src={`${base}${luckImg}`}
+                    alt=""
+                    style={{
+                      position: 'absolute',
+                      bottom: 5,
+                      left: -10,
+                      width: 114,
+                      objectFit: 'contain',
+                      zIndex: 10,
+                      pointerEvents: 'none',
+                    }}
+                  />
+                )}
+              </div>
+
+              {/* 右：信息区 */}
+              <div style={{
+                flex: 1, padding: '18px 14px 16px 8px',
+                display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 8,
+                position: 'relative', zIndex: 1,
+              }}>
+                {/* 属系 icon + 精灵名 */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                  <div style={{
+                    width: 32, height: 32, borderRadius: '50%',
+                    background: '#fff', border: '3px solid #fff',
+                    boxShadow: '3px 2px 0 rgba(19,19,19,1)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    overflow: 'hidden', flexShrink: 0,
+                  }}>
+                    {attrId
+                      ? <img src={`${base}attrs/${attrId}.webp`} alt={attrId} style={{ width: 24, height: 24, objectFit: 'contain' }} />
+                      : <span style={{ fontSize: 14 }}>★</span>
+                    }
+                  </div>
+                  <span className="font-spirit" style={{
+                    fontSize: 26, fontWeight: 700,
+                    color: '#EEE7D7',
+                    textShadow: '3px 4px 0 rgba(0,0,0,0.93)',
+                    lineHeight: 1.2,
+                  }}>{task.resultSpirit}</span>
+                </div>
+
+                {/* 方案名 + 出货池 tag */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  {plan && (
+                    <span style={{
+                      fontSize: 14, fontWeight: 500, color: '#EEE7D7',
+                      fontFamily: 'var(--font-body)',
+                      textShadow: '0 4px 4px rgba(0,0,0,0.25)',
+                    }}>{plan.type}方案</span>
+                  )}
+                  {isManual && (
+                    <span style={{
+                      display: 'inline-block', background: '#8B7355', color: '#EEE7D7',
+                      fontSize: 11, fontWeight: 900, padding: '2px 7px',
+                      borderRadius: '7px 7px 7px 0', boxShadow: '3px 4px 0 rgba(0,0,0,1)',
+                      fontFamily: 'var(--font-body)',
+                    }}>手动补录</span>
+                  )}
+                  {!isManual && poolType && POOL_IMG[poolType] && (
+                    <img
+                      src={`${base}${POOL_IMG[poolType]}.webp`}
+                      alt={poolType}
+                      style={{ height: 22, objectFit: 'contain' }}
+                    />
+                  )}
+                </div>
+
+                {/* 保底进度 */}
+                {!isManual && task.shieldBreakCount != null && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <img src={`${base}icon-progress.webp`} alt="" style={{ width: 18, height: 18, objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
+                    <span style={{ fontSize: 13, fontWeight: 400, color: '#EEE7D7', fontFamily: 'var(--font-body)', textShadow: '0 4px 4px rgba(0,0,0,0.25)' }}>保底进度</span>
+                    <span className="font-subtitle" style={{ fontSize: 20, fontWeight: 700, color: '#F8D25E', textShadow: '4px 4px 0 rgba(35,35,35,0.91)', marginLeft: 2 }}>
+                      {task.shieldBreakCount}/80
+                    </span>
+                  </div>
+                )}
+
+                {/* 消耗球数 */}
+                {task.ballsUsed != null && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <img src={`${base}icon-balls.webp`} alt="" style={{ width: 18, height: 18, objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
+                    <span style={{ fontSize: 13, fontWeight: 400, color: '#EEE7D7', fontFamily: 'var(--font-body)', textShadow: '0 4px 4px rgba(0,0,0,0.25)' }}>消耗球数</span>
+                    <span className="font-subtitle" style={{ fontSize: 20, fontWeight: 700, color: '#F8D25E', textShadow: '4px 4px 0 rgba(35,35,35,0.91)', marginLeft: 2 }}>
+                      {task.ballsUsed}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>{/* 固定顶部区结束 */}
+
+      {/* ── 可滚动底部区 ── */}
+      <div className="page-container" style={{
+        position: 'relative', zIndex: 1,
+        flex: 1,
+        paddingTop: 0, paddingBottom: 24,
+      }}>
+        {/* 球数明细卡 */}
+        {(task.ballsUsed != null || task.ballsUsedByType) && (
+          <div style={{
+            margin: '0 16px 12px',
+            borderRadius: 18,
+            overflow: 'hidden',
+            position: 'relative',
+          }}>
+            <div style={{ padding: '0 16px 14px' }}>
+              <div className="font-subtitle" style={{ fontSize: 14, fontWeight: 800, color: '#675D53', letterSpacing: 0.8, marginBottom: 8 }}>
+                消耗球数明细
+              </div>
+              <div style={{ height: 1, background: '#D3CFC8', marginBottom: 12 }} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
+                {/* 高级球 */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, borderRight: '1px solid #D3CFC8', paddingRight: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <img src={`${base}ball-adv.webp`} alt="高级球" style={{ width: 25, height: 25, objectFit: 'contain', flexShrink: 0 }} />
+                    <span className="font-subtitle" style={{ fontSize: 28, fontWeight: 900, color: '#AE54DC', lineHeight: 1 }}>
+                      {task.ballsUsedByType?.adv ?? (task.ballsUsedByType == null && task.ballsUsed != null ? task.ballsUsed : 0)}
+                    </span>
+                  </div>
+                  <div className="font-subtitle" style={{ fontSize: 12, color: '#675D53', fontWeight: 700 }}>高级球</div>
+                </div>
+                {/* 赛季球 */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, borderRight: '1px solid #D3CFC8', paddingLeft: 8, paddingRight: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <img src={`${base}ball-sea.webp`} alt="赛季球" style={{ width: 25, height: 25, objectFit: 'contain', flexShrink: 0 }} />
+                    <span className="font-subtitle" style={{ fontSize: 28, fontWeight: 900, color: '#7E57C2', lineHeight: 1 }}>
+                      {task.ballsUsedByType?.sea ?? 0}
+                    </span>
+                  </div>
+                  <div className="font-subtitle" style={{ fontSize: 12, color: '#675D53', fontWeight: 700 }}>赛季球</div>
+                </div>
+                {/* 属性球 */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, paddingLeft: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    {ballInfo
+                      ? <img src={`${base}${ballInfo.file}`} alt={ballInfo.label} style={{ width: 25, height: 25, objectFit: 'contain', flexShrink: 0 }} />
+                      : <div style={{ width: 25, height: 25, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>⚾</div>
+                    }
+                    <span className="font-subtitle" style={{ fontSize: 28, fontWeight: 900, color: '#5B9CF6', lineHeight: 1 }}>
+                      {task.ballsUsedByType?.att ?? 0}
+                    </span>
+                  </div>
+                  <div className="font-subtitle" style={{ fontSize: 12, color: '#675D53', fontWeight: 700 }}>
+                    {ballInfo?.label ?? '属性球'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 触发污染记录卡 */}
+        {hasShieldBreaks && (
+          <div style={{
+            margin: '0 16px 12px',
+            borderRadius: 18,
+            overflow: 'hidden',
+            position: 'relative',
+          }}>
+            <div style={{ padding: '0 16px 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <span className="font-subtitle" style={{ fontSize: 14, fontWeight: 800, color: '#675D53', letterSpacing: 0.8 }}>触发污染记录</span>
+                <div style={{ display: 'flex', gap: 8, fontSize: 10, fontWeight: 700 }}>
+                  <span style={{ color: 'var(--success)' }}>原色×{original}</span>
+                  <span style={{ color: 'var(--polluted)' }}>污染×{polluted}</span>
+                  {shiny > 0 && <span style={{ color: 'var(--gold)' }}>异色×{shiny}</span>}
+                </div>
+              </div>
+              <div style={{ height: 1, background: '#D3CFC8', marginBottom: 12 }} />
+              <ShieldDots breaks={task.shieldBreaks} max={task.shieldBreakCount || task.shieldBreaks.length} />
+            </div>
+          </div>
+        )}
+
+        {/* 备注 */}
+        {task.note && (
+          <div style={{
+            margin: '0 16px 12px',
+            background: 'rgba(43,42,46,0.06)',
+            borderRadius: 12, padding: '10px 14px',
+          }}>
+            <span style={{ fontSize: 11, color: '#675D53', fontWeight: 600 }}>备注：{task.note}</span>
+          </div>
+        )}
+      </div>{/* 可滚动区结束 */}
+    </div>
+  );
+}
+
 // ─── 历史卡片（从 History.jsx 迁移，保持完全一致）──────────────────────────
 
-function HistoryCard({ task, index, userPlanConfig }) {
+function HistoryCard({ task, index, userPlanConfig, onDetail }) {
   const { dispatch } = useStore();
   const plan = PLANS.find(p => p.id === task.planId)
     || (userPlanConfig || []).find(p => p.id === task.planId) || null;
@@ -49,8 +410,12 @@ function HistoryCard({ task, index, userPlanConfig }) {
     polluted: '',
     original: '',
     ballsUsed: '',
+    adv: '',
+    sea: '',
+    att: '',
   });
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showBallDetail, setShowBallDetail] = useState(false);
 
   const openEdit = () => {
     setConfirmDelete(false);
@@ -59,6 +424,9 @@ function HistoryCard({ task, index, userPlanConfig }) {
       polluted: String(polluted),
       original: String(original),
       ballsUsed: task.ballsUsed != null ? String(task.ballsUsed) : '',
+      adv: task.ballsUsedByType?.adv != null ? String(task.ballsUsedByType.adv) : '',
+      sea: task.ballsUsedByType?.sea != null ? String(task.ballsUsedByType.sea) : '',
+      att: task.ballsUsedByType?.att != null ? String(task.ballsUsedByType.att) : '',
     });
     setEditing(true);
   };
@@ -67,7 +435,13 @@ function HistoryCard({ task, index, userPlanConfig }) {
     const sbc = parseNonNeg(inputs.shieldBreakCount);
     const pol = parseNonNeg(inputs.polluted);
     const ori = parseNonNeg(inputs.original);
-    const bal = parseNonNeg(inputs.ballsUsed);
+    const adv = parseNonNeg(inputs.adv);
+    const sea = parseNonNeg(inputs.sea);
+    const att = parseNonNeg(inputs.att);
+    // 若三个分球都填了，自动汇总总球数；否则使用手填总球数
+    const hasDetail = adv != null && sea != null && att != null;
+    const bal = hasDetail ? adv + sea + att : parseNonNeg(inputs.ballsUsed);
+    const ballsUsedByType = hasDetail ? { adv, sea, att } : undefined;
     dispatch({
       type: 'UPDATE_COMPLETED_STATS',
       taskId: task.id,
@@ -75,6 +449,7 @@ function HistoryCard({ task, index, userPlanConfig }) {
       polluted: pol ?? polluted,
       original: ori ?? original,
       ballsUsed: bal,
+      ballsUsedByType,
     });
     setEditing(false);
   };
@@ -198,34 +573,80 @@ function HistoryCard({ task, index, userPlanConfig }) {
           padding: '10px 0',
         }}>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 17, fontWeight: 900, color: '#2B2A2E', lineHeight: 1, fontFamily: 'var(--font-display)' }}>
+            <div className="font-subtitle" style={{ fontSize: 17, fontWeight: 900, color: '#2B2A2E', lineHeight: 1 }}>
               {task.ballsUsed != null ? task.ballsUsed : '—'}
             </div>
             <div style={{ fontSize: 9, color: '#A09080', marginTop: 4, fontWeight: 600 }}>消耗球数</div>
           </div>
         </div>
       ) : (
-        <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
-          background: '#F0E8D5', borderRadius: 10, overflow: 'hidden', marginBottom: 8,
-        }}>
-          {[
-            { label: '触发污染次数', value: task.shieldBreakCount ?? '—', color: '#D4560A' },
-            { label: '污染精灵', value: polluted, color: '#8B4BB8' },
-            { label: '原色精灵', value: original, color: '#4B9C46' },
-            { label: '消耗球数', value: task.ballsUsed != null ? task.ballsUsed : '—', color: '#2B2A2E' },
-          ].map((item, i) => (
-            <div key={i} style={{
-              padding: '10px 4px', textAlign: 'center',
-              borderRight: i < 3 ? '1px solid rgba(103,93,83,0.12)' : 'none',
-            }}>
-              <div style={{ fontSize: 17, fontWeight: 900, color: item.color, lineHeight: 1, fontFamily: 'var(--font-display)' }}>
-                {item.value}
+        <>
+          <div style={{
+            display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1.4fr',
+            background: '#F0E8D5', borderRadius: task.ballsUsedByType && showBallDetail ? '10px 10px 0 0' : 10,
+            overflow: 'hidden', marginBottom: task.ballsUsedByType && showBallDetail ? 0 : 8,
+          }}>
+            {[
+              { label: '触发污染次数', value: task.shieldBreakCount ?? '—', color: '#D4560A' },
+              { label: '污染精灵', value: polluted, color: '#8B4BB8' },
+              { label: '原色精灵', value: original, color: '#4B9C46' },
+            ].map((item, i) => (
+              <div key={i} style={{
+                padding: '10px 4px', textAlign: 'center',
+                borderRight: '1px solid rgba(103,93,83,0.12)',
+              }}>
+                <div className="font-subtitle" style={{ fontSize: 17, fontWeight: 900, color: item.color, lineHeight: 1 }}>
+                  {item.value}
+                </div>
+                <div style={{ fontSize: 9, color: '#A09080', marginTop: 4, fontWeight: 600 }}>{item.label}</div>
               </div>
-              <div style={{ fontSize: 9, color: '#A09080', marginTop: 4, fontWeight: 600 }}>{item.label}</div>
+            ))}
+            {/* 消耗球数格子 */}
+            <div style={{ padding: '10px 8px', textAlign: 'center' }}>
+              <div className="font-subtitle" style={{ fontSize: 17, fontWeight: 900, color: '#2B2A2E', lineHeight: 1 }}>
+                {task.ballsUsed != null ? task.ballsUsed : '—'}
+              </div>
+              <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                <span style={{ fontSize: 9, color: '#A09080', fontWeight: 600 }}>消耗球数</span>
+                {task.ballsUsedByType && (
+                  <button
+                    onClick={() => setShowBallDetail(v => !v)}
+                    style={{
+                      border: 'none', background: 'none',
+                      fontSize: 9, fontWeight: 700, color: '#5B9CF6',
+                      cursor: 'pointer', padding: '1px 3px', borderRadius: 3,
+                      lineHeight: 1.2, flexShrink: 0,
+                    }}
+                  >
+                    {showBallDetail ? '收起▴' : '明细▾'}
+                  </button>
+                )}
+              </div>
             </div>
-          ))}
-        </div>
+          </div>
+          {/* 分球明细展开区 */}
+          {task.ballsUsedByType && showBallDetail && (
+            <div style={{
+              background: '#EDE4D0', borderRadius: '0 0 10px 10px',
+              padding: '8px 12px', marginBottom: 8,
+              display: 'flex', justifyContent: 'space-around', alignItems: 'center',
+              borderTop: '1px solid rgba(103,93,83,0.12)',
+            }}>
+              {[
+                { label: '高级球', val: task.ballsUsedByType.adv, color: '#C8830A' },
+                { label: '赛季球', val: task.ballsUsedByType.sea, color: '#7E57C2' },
+                { label: '属性球', val: task.ballsUsedByType.att, color: '#5B9CF6' },
+              ].map(({ label, val, color }) => (
+                <div key={label} style={{ textAlign: 'center' }}>
+                  <div className="font-subtitle" style={{ fontSize: 14, fontWeight: 900, color, lineHeight: 1 }}>
+                    {val ?? 0}
+                  </div>
+                  <div style={{ fontSize: 9, color: '#A09080', marginTop: 3, fontWeight: 600 }}>{label}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {/* 编辑面板 */}
@@ -237,14 +658,14 @@ function HistoryCard({ task, index, userPlanConfig }) {
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 8, letterSpacing: 0.5 }}>
             修改数据
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 10px', marginBottom: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 10px', marginBottom: 8 }}>
             {(isManual ? [
               { field: 'ballsUsed', label: '消耗球数', placeholder: '个', color: '#2B2A2E' },
             ] : [
               { field: 'shieldBreakCount', label: '触发污染次数', placeholder: '次数', color: '#D4560A' },
               { field: 'polluted', label: '污染精灵', placeholder: '只', color: '#8B4BB8' },
               { field: 'original', label: '原色精灵', placeholder: '只', color: '#4B9C46' },
-              { field: 'ballsUsed', label: '消耗球数', placeholder: '个', color: '#2B2A2E' },
+              { field: 'ballsUsed', label: '消耗球数（总）', placeholder: '三格都填时自动算', color: '#2B2A2E' },
             ]).map(({ field, label, placeholder, color }) => (
               <div key={field}>
                 <div style={{ fontSize: 9, fontWeight: 700, color, marginBottom: 4 }}>{label}</div>
@@ -265,6 +686,37 @@ function HistoryCard({ task, index, userPlanConfig }) {
               </div>
             ))}
           </div>
+          {/* 分球明细编辑区 */}
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: '#675D53', marginBottom: 6, letterSpacing: 0.5 }}>
+              分球明细（填写后自动覆盖总球数）
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0 8px' }}>
+              {[
+                { field: 'adv', label: '高级球', color: '#AE54DC' },
+                { field: 'sea', label: '赛季球', color: '#7E57C2' },
+                { field: 'att', label: '属性球', color: '#5B9CF6' },
+              ].map(({ field, label, color }) => (
+                <div key={field}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color, marginBottom: 4 }}>{label}</div>
+                  <input
+                    type="number" inputMode="numeric" min="0"
+                    value={inputs[field]}
+                    onChange={e => setField(field, e.target.value)}
+                    placeholder="0"
+                    style={{
+                      width: '100%', boxSizing: 'border-box',
+                      padding: '7px 10px', borderRadius: 7,
+                      border: `1.5px solid ${color}44`,
+                      background: '#FBF7EC',
+                      fontSize: 13, fontWeight: 800, fontFamily: 'var(--font-display)',
+                      color, outline: 'none',
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
           <button onClick={handleSave} style={{
             width: '100%', padding: '10px 0',
             border: '2px solid #2B2A2E', borderRadius: 'var(--radius-sm)',
@@ -275,43 +727,23 @@ function HistoryCard({ task, index, userPlanConfig }) {
         </div>
       )}
 
-      {/* 标签行 */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        {isManual ? (
-          <span style={{
-            fontSize: 10, padding: '2px 8px', borderRadius: 20, fontWeight: 700,
-            background: 'rgba(93,64,55,0.08)', color: '#5D4037',
-            border: '1px solid rgba(93,64,55,0.2)',
-          }}>✍️ 手动补录</span>
-        ) : (
-          <span style={{
-            fontSize: 10, padding: '2px 8px', borderRadius: 20, fontWeight: 700,
-            background: 'rgba(212,86,10,0.08)', color: '#D4560A',
-            border: '1px solid rgba(212,86,10,0.2)',
-          }}>💀 触发污染 {task.shieldBreakCount ?? '—'}</span>
-        )}
-        {!isManual && polluted > 0 && (
-          <span style={{
-            fontSize: 10, padding: '2px 8px', borderRadius: 20, fontWeight: 700,
-            background: 'rgba(139,75,184,0.08)', color: '#8B4BB8',
-            border: '1px solid rgba(139,75,184,0.2)',
-          }}>污染精灵 {polluted}</span>
-        )}
-        {!isManual && original > 0 && (
-          <span style={{
-            fontSize: 10, padding: '2px 8px', borderRadius: 20, fontWeight: 700,
-            background: 'rgba(75,156,70,0.08)', color: '#4B9C46',
-            border: '1px solid rgba(75,156,70,0.2)',
-          }}>原色精灵 {original}</span>
-        )}
-        {!isManual && shiny > 0 && (
-          <span style={{
-            fontSize: 10, padding: '2px 8px', borderRadius: 20, fontWeight: 700,
-            background: 'rgba(200,131,10,0.10)', color: '#C8830A',
-            border: '1px solid rgba(200,131,10,0.25)',
-          }}>✨ 异色精灵 {shiny}</span>
-        )}
-      </div>
+      {/* 查看详情按钮 */}
+      {onDetail && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button
+            onClick={onDetail}
+            style={{
+              flexShrink: 0,
+              border: '1px solid rgba(91,156,246,0.4)',
+              background: 'rgba(91,156,246,0.06)',
+              borderRadius: 20, padding: '2px 10px',
+              fontSize: 10, fontWeight: 700, color: '#5B9CF6',
+              cursor: 'pointer', fontFamily: 'var(--font-body)',
+              whiteSpace: 'nowrap',
+            }}
+          >查看详情 →</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -349,6 +781,18 @@ function useUsername() {
     return name;
   });
   const [nameSaving, setNameSaving] = useState(false);
+
+  // 监听 localStorage 变化（hydrateFromCloud 在初始化时写入 user_name 后通知更新）
+  // 注意：storage 事件只在其他 Tab 触发；同 Tab 内由 hydrateFromCloud 完成后手动 dispatch
+  useEffect(() => {
+    function onStorage(e) {
+      if (e.key === USERNAME_KEY && e.newValue && e.newValue !== username) {
+        setUsername(e.newValue);
+      }
+    }
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [username]);
 
   // userId 有值时额外写 Supabase
   const saveUsername = async (name, userId) => {
@@ -425,7 +869,7 @@ function AvatarUploader({ avatarUrl, onFileChange }) {
       title="点击更换头像"
     >
       <img
-        src={avatarUrl || `${import.meta.env.BASE_URL}default-avatar.png`}
+        src={avatarUrl || `${import.meta.env.BASE_URL}default-avatar.webp`}
         alt="头像"
         className="profile-avatar-img"
       />
@@ -445,6 +889,37 @@ function AvatarUploader({ avatarUrl, onFileChange }) {
 
 const CHANGELOG = [
   {
+    version: 'v2.5',
+    date: '2026-05-10',
+    tags: ['修正', '优化', '数据'],
+    items: [
+      '修正战令宠刷取规则：疾光千兽 / 绒仙子为战令限定宠，只能使用各自专属果实（犀角鸟果实 / 绒绒果实）刷家族池；可搭配独角兽果实提升效率，但单刷独角兽果实时光系大池仅可产出嗜光嗡嗡——比单刷嗡嗡家族更省球，性价比更高',
+      '优化云端数据同步机制：网络波动导致上云失败时会触发提示，长时间失联后可手动触发重连；建议开梯子或切换节点提升稳定性',
+      '优化刷取详情 UI：抓取过程展示更清晰',
+    ],
+  },
+  {
+    version: 'v2.4',
+    date: '2026-05-09',
+    tags: ['优化', '数据'],
+    items: [
+      '刷取记录页新增详情刷取展示，5月9日起完成的刷取记录会支持展示全量过程精灵',
+    ],
+  },
+  {
+    version: 'v2.3',
+    date: '2026-05-08',
+    tags: ['新功能', '优化'],
+    items: [
+      '果实攻略全面扩充：新增赛季 & 活动获得的果实、方案库中使用到的所有果实，覆盖更完整',
+      '果实攻略支持「已拥有」标记：点击条目右侧按钮可标记/取消拥有，已拥有果实高亮显示，方便对照自己的收集进度',
+      '方案库新增双维度筛选：支持按「是否拥有对应果实」×「属系」同时过滤，快速找到当前能刷的方案',
+      '刷取记录「消耗球数」新增「明细▾」：按球种计球模式完成的任务，点击可展开查看高级球 / 赛季球 / 属性球各自消耗数量',
+      '暂停计球功能：刷取途中点击「⏸暂停」可先结算当前球段再继续，支持多段暂停，结算时汇总各段消耗',
+      '修改开始球数：球卡片支持「✎改」临时修正起始球数，适用于中途跑去刷别的精灵消耗了球的场景',
+    ],
+  },
+  {
     version: 'v2.2',
     date: '2026-05-06',
     tags: ['优化', '账号'],
@@ -463,7 +938,7 @@ const CHANGELOG = [
       '图鉴：补充普通异色精灵的单刷方案与奇遇精灵的属性混抓方案',
       '重构了「方案」页，修复了自定义方案在「方案」页找不到的问题，历史新建过的方案都会收录在此',
       '新增「积累属系池」方案 × 5：🔥火系（火焰猿+尖嘴狐仙）、🌿草系（蹦蹦花）、⚙️机械系（波多西+圣剑侍从）、💧水系（深蓝鲸）、🌸萌系（菊花梨）——适合目标精灵无异色但想稳定积累属系权重的玩家',
-      '新增✨光系积累方案（小独角兽果实）：小独角兽第二属性为光系，使用其果实可间接积累光系池，产出疾光千兽 / 绒仙子 / 嗜光嗡嗡异色',
+      '新增✨光系积累方案（小独角兽果实）：小独角兽第二属性为光系，使用其果实可间接积累光系池，单刷可产出嗜光嗡嗡异色',
     ],
   },
   {
@@ -508,6 +983,7 @@ const TAG_COLORS = {
   '首次发布': { bg: 'rgba(91,156,246,0.12)', color: '#5B9CF6', border: 'rgba(91,156,246,0.3)' },
   '优化': { bg: 'rgba(126,87,194,0.12)', color: '#7E57C2', border: 'rgba(126,87,194,0.3)' },
   '新方案': { bg: 'rgba(200,131,10,0.12)', color: '#C8830A', border: 'rgba(200,131,10,0.3)' },
+  '数据': { bg: 'rgba(91,156,246,0.12)', color: '#3B82C4', border: 'rgba(91,156,246,0.3)' },
 };
 
 function ChangelogModal({ onClose }) {
@@ -608,10 +1084,18 @@ function ChangelogModal({ onClose }) {
   );
 }
 
-export default function Profile({ navigate }) {
-  const { state, syncStatus, authUser, userId } = useStore();
-  // null = 主页，'history' = 刷取记录子页
-  const [subPage, setSubPage] = useState(null);
+export default function Profile({ navigate, initialDetailTaskId = null }) {
+  const { state, syncStatus, authUser, userId, lastSyncResult, retrySyncNow, pingSync, poolCounts } = useStore();
+  // null = 主页，'history' = 刷取记录子页，'detail' = 刷取详情全页面
+  const [subPage, setSubPage] = useState(initialDetailTaskId ? 'detail' : null);
+
+  // ── 每次进入「我的」主页时探查同步状态 ──
+  // 1. 挂载时触发（切 Tab 到「我的」）
+  useEffect(() => { pingSync(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // 2. 从子页返回主页时触发
+  useEffect(() => {
+    if (subPage === null) pingSync();
+  }, [subPage]); // eslint-disable-line react-hooks/exhaustive-deps
   const [showChangelog, setShowChangelog] = useState(false);
   // showBindModal: false | 'bind' | 'login' | 'switch'
   const [showBindModal, setShowBindModal] = useState(false);
@@ -625,11 +1109,33 @@ export default function Profile({ navigate }) {
   // ── 邮箱绑定入口展开状态 ──
   const [emailExpanded, setEmailExpanded] = useState(false);
 
+  // ── 答疑群二维码弹窗 ──
+  const [showQRModal, setShowQRModal] = useState(false);
+
+  // ── 刷取详情（全页面）──
+  const tasks_for_detail = state.completedTasks || [];
+  const [detailTask, setDetailTask] = useState(
+    initialDetailTaskId
+      ? (tasks_for_detail.find(t => t.id === initialDetailTaskId) ?? null)
+      : null
+  );
+  const openDetail = (task) => { setDetailTask(task); setSubPage('detail'); };
+  const closeDetail = () => {
+    setDetailTask(null);
+    setSubPage('history');
+    // 如果是从「保存并查看」跳进来的，清掉 pageStack 里的 openTaskId 参数，
+    // 防止用户后续 goBack 时 Profile 重新挂载并误触发详情页
+    if (initialDetailTaskId) navigate('history');
+  };
+
   // ── 更新公告折叠状态 ──
   const [guideExpanded, setGuideExpanded] = useState(false);
 
   // ── 开发者的话折叠状态 ──
   const [devNoteExpanded, setDevNoteExpanded] = useState(false);
+
+  // ── 各池保底进度折叠状态（默认收起） ──
+  const [poolOverviewExpanded, setPoolOverviewExpanded] = useState(false);
 
   // ── 问题反馈 ──
   const [fbContent, setFbContent] = useState('');
@@ -674,14 +1180,32 @@ export default function Profile({ navigate }) {
   const totalBreaks = normalSuccessTasks.reduce((s, t) => s + (t.shieldBreakCount || 0), 0);
   const avgBreaks = normalSuccessTasks.length > 0 ? Math.round(totalBreaks / normalSuccessTasks.length) : 0;
 
-  const syncColor = syncStatus === 'ready' ? '#4CAF50' : syncStatus === 'offline' ? '#FF9800' : '#9E9E9E';
-  const syncLabel = syncStatus === 'ready' ? '已同步' : syncStatus === 'offline' ? '离线' : '同步中';
+  // 同步状态展示：优先用 lastSyncResult（最近一次 Supabase 同步结果），fallback 到 syncStatus
+  const syncPending = lastSyncResult?.status === 'pending';
+  const syncFailed  = lastSyncResult?.status === 'fail';
+  const syncSuccess = lastSyncResult?.status === 'success';
+  // 失败态：Supabase upsert 失败 OR offline（连接断开），
+  // 但「正在重连中」(syncPending) 时不算失败——此时显示「同步中…」
+  const isAnyFail = !syncPending && (syncFailed || syncStatus === 'offline');
+  const syncColor = syncPending
+    ? '#9E9E9E'
+    : isAnyFail ? '#F44336'
+    : (syncSuccess || syncStatus === 'ready') ? '#4CAF50'
+    : '#9E9E9E';
+  const syncLabel = syncPending
+    ? '同步中…'
+    : isAnyFail ? '同步失败，点击重试'
+    : syncSuccess ? '已同步 ✓'
+    : syncStatus === 'ready' ? '已同步'
+    : '同步中…';
+  // 失败态时可点击重试（正在同步中时不可重复触发）
+  const syncClickable = isAnyFail;
 
   return (
     <div className="page profile-page" style={{ position: 'relative' }}>
       {/* 我的页全局背景图 */}
       <img
-        src={`${import.meta.env.BASE_URL}profile-bg.png`}
+        src={`${import.meta.env.BASE_URL}profile-bg.webp`}
         alt="" aria-hidden="true"
         style={{
           position: 'absolute', top: 10, left: '50%',
@@ -692,30 +1216,32 @@ export default function Profile({ navigate }) {
           zIndex: -1,
         }}
       />
-      {/* 页头 —— 子页时显示返回按钮 */}
-      <div className="page-header">
-        {subPage === 'history' ? (
-          <>
-            <button
-              onClick={() => setSubPage(null)}
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                padding: 0, display: 'flex', alignItems: 'center',
-              }}
-            ><img src={`${import.meta.env.BASE_URL}back-icon.png`} alt="返回" style={{ width: 36, height: 36 }} /></button>
-            <h2 style={{ flex: 1 }}>刷取记录</h2>
-          </>
-        ) : (
-          <h2>我的</h2>
-        )}
-      </div>
+      {/* 页头 —— 子页时显示返回按钮；detail 全页面自带 header，主 page-header 隐藏 */}
+      {subPage !== 'detail' && (
+        <div className="page-header">
+          {subPage === 'history' ? (
+            <>
+              <button
+                onClick={() => setSubPage(null)}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  padding: 0, display: 'flex', alignItems: 'center',
+                }}
+              ><img src={`${import.meta.env.BASE_URL}back-icon.webp`} alt="返回" style={{ width: 36, height: 36 }} /></button>
+              <h2 style={{ flex: 1 }}>刷取记录</h2>
+            </>
+          ) : (
+            <h2>我的</h2>
+          )}
+        </div>
+      )}
 
       {/* ══ 主页：我的 ══════════════════════════════════════════════════════════ */}
       {subPage === null && (
         <div style={{ paddingTop: 72, position: 'relative' }}>
           {/* dimo戴眼罩 —— 悬浮在用户信息卡片上方 */}
           <img
-            src={`${import.meta.env.BASE_URL}dimo-mask.png`}
+            src={`${import.meta.env.BASE_URL}dimo-mask.webp`}
             alt="" aria-hidden="true"
             style={{
               position: 'absolute', left: 16, top: 17,
@@ -731,7 +1257,7 @@ export default function Profile({ navigate }) {
           }}>
             {/* 迪莫剪影装饰 */}
             <img
-              src={`${import.meta.env.BASE_URL}dimo-bg.png`}
+              src={`${import.meta.env.BASE_URL}dimo-bg.webp`}
               alt="" aria-hidden="true"
               style={{
                 position: 'absolute', right: 14, top: 14,
@@ -786,14 +1312,25 @@ export default function Profile({ navigate }) {
                 )}
                 {/* 状态行：同步点 + 邮箱小入口并排 */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5, flexWrap: 'wrap' }}>
-                  {/* 同步状态 */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {/* 同步状态（失败时可点击重试） */}
+                  <div
+                    role={syncClickable ? 'button' : undefined}
+                    onClick={syncClickable ? retrySyncNow : undefined}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 4,
+                      cursor: syncClickable ? 'pointer' : 'default',
+                    }}
+                  >
                     <span style={{
                       width: 7, height: 7, borderRadius: '50%',
                       background: syncColor, flexShrink: 0,
-                      boxShadow: syncStatus === 'ready' ? '0 0 0 2px rgba(76,175,80,0.2)' : 'none',
+                      boxShadow: (syncSuccess || syncStatus === 'ready') ? '0 0 0 2px rgba(76,175,80,0.2)' : 'none',
                     }} />
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>{syncLabel}</span>
+                    <span style={{
+                      fontSize: 11, fontWeight: 600,
+                      color: isAnyFail ? '#F44336' : 'var(--text-muted)',
+                      textDecoration: syncClickable ? 'underline dotted' : 'none',
+                    }}>{syncLabel}</span>
                   </div>
                   {/* 竖分隔 */}
                   <span style={{ width: 1, height: 10, background: 'var(--divider)', display: 'inline-block' }} />
@@ -812,7 +1349,23 @@ export default function Profile({ navigate }) {
                       color: isBound ? 'var(--success)' : 'var(--cta)',
                       textDecoration: emailExpanded ? 'underline' : 'none',
                     }}>
-                      {isBound ? '邮箱已绑定' : '绑定邮箱'}
+                      {isBound ? '邮箱已绑定' : '邮箱登录/绑定'}
+                    </span>
+                  </button>
+                  {/* 竖分隔 */}
+                  <span style={{ width: 1, height: 10, background: 'var(--divider)', display: 'inline-block' }} />
+                  {/* 答疑群小入口 */}
+                  <button
+                    onClick={() => setShowQRModal(true)}
+                    style={{
+                      background: 'none', border: 'none', padding: 0,
+                      cursor: 'pointer', fontFamily: 'var(--font-body)',
+                      display: 'flex', alignItems: 'center', gap: 3,
+                    }}
+                  >
+                    <span style={{ fontSize: 11 }}>💬</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#4B9C46' }}>
+                      加入答疑群
                     </span>
                   </button>
                 </div>
@@ -912,21 +1465,21 @@ export default function Profile({ navigate }) {
               {/* 三格数字 */}
               <div style={{ display: 'flex', gap: 0 }}>
                 <div style={{ flex: 1, textAlign: 'center' }}>
-                  <div style={{ fontSize: 22, fontWeight: 900, color: '#4CAF50', lineHeight: 1, fontFamily: 'var(--font-display)' }}>
+                  <div className="font-subtitle" style={{ fontSize: 22, fontWeight: 900, color: '#4CAF50', lineHeight: 1 }}>
                     {totalObtained}
                   </div>
                   <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 5, fontWeight: 600 }}>已收集</div>
                 </div>
                 <div style={{ width: 1, background: 'var(--divider)', margin: '2px 0' }} />
                 <div style={{ flex: 1, textAlign: 'center' }}>
-                  <div style={{ fontSize: 22, fontWeight: 900, color: '#C8830A', lineHeight: 1, fontFamily: 'var(--font-display)' }}>
+                  <div className="font-subtitle" style={{ fontSize: 22, fontWeight: 900, color: '#C8830A', lineHeight: 1 }}>
                     {totalSpirits - totalObtained}
                   </div>
                   <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 5, fontWeight: 600 }}>待收集</div>
                 </div>
                 <div style={{ width: 1, background: 'var(--divider)', margin: '2px 0' }} />
                 <div style={{ flex: 1, textAlign: 'center' }}>
-                  <div style={{ fontSize: 22, fontWeight: 900, color: '#2B2A2E', lineHeight: 1, fontFamily: 'var(--font-display)' }}>
+                  <div className="font-subtitle" style={{ fontSize: 22, fontWeight: 900, color: '#2B2A2E', lineHeight: 1 }}>
                     {totalSpirits}
                   </div>
                   <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 5, fontWeight: 600 }}>全部</div>
@@ -994,7 +1547,7 @@ export default function Profile({ navigate }) {
                     {item.label}
                   </div>
                   <img
-                    src={`${import.meta.env.BASE_URL}next-icon.png`}
+                    src={`${import.meta.env.BASE_URL}next-icon.webp`}
                     alt=""
                     style={{ width: 28, height: 'auto' }}
                   />
@@ -1003,7 +1556,168 @@ export default function Profile({ navigate }) {
             ))}
           </div>
 
-          {/* ━━ 4. 更新公告（折叠） ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+          {/* ━━ 4. 三池保底总览 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+          {(() => {
+            // 从事件流派生三池计数（不再直接读 state.attrPools / state.worldPool）
+            const attrPools = poolCounts?.attrPools || {};
+            const worldPool = poolCounts?.worldPool || 0;
+            const activeTasks = state.activeTasks || [];
+            const allPlans = [...PLANS, ...(state.userPlanConfig || [])];
+
+            // 系别池：遍历所有有非零进度的 attrId
+            const attrEntries = Object.entries(attrPools)
+              .filter(([, v]) => v > 0)
+              .map(([attrId, count]) => {
+                // 用 attrId 在所有方案里找对应方案的显示信息
+                const plan = allPlans.find(p => getPlanAttrId(p) === attrId || p.id === attrId);
+                return { attrId, count, plan };
+              });
+
+            // 家族池：从进行中任务的 shieldBreaks 事件流派生（不读 task.familyPool）
+            const familyEntries = activeTasks
+              .map(t => {
+                const plan = allPlans.find(p => p.id === t.planId) || null;
+                const count = plan ? computeFamilyPool(t, plan) : 0;
+                return { task: t, plan, count };
+              })
+              .filter(e => e.count > 0);
+
+            // 完全没有任何进度时不展示
+            const hasAny = worldPool > 0 || attrEntries.length > 0 || familyEntries.length > 0;
+            if (!hasAny) return null;
+
+            const POOL_LIMIT = { family: 70, attr: 80, world: 80 };
+
+            // 单条进度行
+            const PoolRow = ({ icon, label, color, count, limit, dotColor }) => {
+              const pct = Math.min(count / limit, 1);
+              const isAlmostFull = pct >= 0.85;
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderBottom: '1px solid rgba(103,93,83,0.08)' }}>
+                  {/* 图标/圆点 */}
+                  {icon
+                    ? <img src={icon} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0, borderRadius: 4 }} />
+                    : <span style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor || color, flexShrink: 0, display: 'inline-block', marginLeft: 5 }} />
+                  }
+                  {/* 标签 */}
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', flexShrink: 0, minWidth: 72 }}>{label}</span>
+                  {/* 进度条 */}
+                  <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'rgba(103,93,83,0.12)', overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%', borderRadius: 3,
+                      width: `${pct * 100}%`,
+                      background: isAlmostFull
+                        ? `linear-gradient(90deg, ${color}, #C8351A)`
+                        : color,
+                      transition: 'width 0.5s cubic-bezier(.4,0,.2,1)',
+                    }} />
+                  </div>
+                  {/* 数字 */}
+                  <span style={{
+                    fontSize: 12, fontWeight: 900, fontFamily: 'var(--font-display)',
+                    color: isAlmostFull ? '#C8351A' : color,
+                    flexShrink: 0, minWidth: 36, textAlign: 'right',
+                  }}>{count}<span style={{ fontSize: 9, fontWeight: 500, color: 'var(--text-muted)', marginLeft: 1 }}>/{limit}</span></span>
+                </div>
+              );
+            };
+
+            // 计算总条目数，作为收起态的概览提示
+            const totalRows = familyEntries.length + attrEntries.length + (worldPool > 0 ? 1 : 0);
+
+            return (
+              <div
+                className="card animate-in"
+                style={{
+                  margin: '0 16px 12px',
+                  padding: poolOverviewExpanded ? '14px 16px 6px' : '12px 16px',
+                }}
+              >
+                {/* 标题行（可点击展开/收起） */}
+                <button
+                  onClick={() => setPoolOverviewExpanded(v => !v)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    width: '100%', padding: 0,
+                    background: 'none', border: 'none',
+                    cursor: 'pointer', fontFamily: 'var(--font-body)',
+                    marginBottom: poolOverviewExpanded ? 4 : 0,
+                  }}
+                >
+                  <img
+                    src={`${import.meta.env.BASE_URL}pool-icon.png`}
+                    alt=""
+                    aria-hidden="true"
+                    style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }}
+                  />
+                  <span style={{ fontSize: 13, fontWeight: 900, color: '#2B2A2E', fontFamily: 'var(--font-display)' }}>各池保底进度实时情况</span>
+                  {!poolOverviewExpanded && (
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 500, marginLeft: 2 }}>
+                      {`共 ${totalRows} 条进度`}
+                    </span>
+                  )}
+                  <img
+                    src={`${import.meta.env.BASE_URL}next-icon.webp`}
+                    alt=""
+                    style={{
+                      width: 18, height: 'auto',
+                      marginLeft: 'auto',
+                      transform: poolOverviewExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                      transition: 'transform 0.2s',
+                      display: 'inline-block',
+                    }}
+                  />
+                </button>
+
+                {poolOverviewExpanded && (
+                  <>
+                    {/* 家族池（每个进行中任务一条，count 从 shieldBreaks 派生） */}
+                    {familyEntries.map(({ task, plan, count }) => (
+                      <PoolRow
+                        key={task.id}
+                        icon={plan?.iconImg || null}
+                        label={`${plan?.type || task.planId} 家族`}
+                        color="#C8830A"
+                        count={count}
+                        limit={POOL_LIMIT.family}
+                      />
+                    ))}
+
+                    {/* 系别池（按 attrId 分条） */}
+                    {attrEntries.map(({ attrId, count, plan }) => (
+                      <PoolRow
+                        key={attrId}
+                        icon={plan?.iconImg || null}
+                        label={`${plan?.type || attrId} 系别`}
+                        color={plan?.color || '#E8A020'}
+                        count={count}
+                        limit={POOL_LIMIT.attr}
+                      />
+                    ))}
+
+                    {/* 世界池（全局单一） */}
+                    {worldPool > 0 && (
+                      <PoolRow
+                        icon={null}
+                        label="世界池"
+                        color="#7E57C2"
+                        dotColor="#7E57C2"
+                        count={worldPool}
+                        limit={POOL_LIMIT.world}
+                      />
+                    )}
+
+                    {/* 底部说明 */}
+                    <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 500, marginTop: 6, marginBottom: 2, lineHeight: 1.5 }}>
+                      · 家族池绑定当前任务，出货后重置 · 系别池 / 世界池跨任务累计，最近一次同池出货后自动清零
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* ━━ 5. 更新公告（折叠） ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
           <div style={{ margin: '0 16px 12px' }}>
             <button
               onClick={() => setGuideExpanded(v => !v)}
@@ -1019,13 +1733,13 @@ export default function Profile({ navigate }) {
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <img src={`${import.meta.env.BASE_URL}announcement-icon.png`} alt="" style={{ width: 24, height: 'auto' }} />
+                <img src={`${import.meta.env.BASE_URL}announcement-icon.webp`} alt="" style={{ width: 24, height: 'auto' }} />
                 <span style={{ fontSize: 16, fontWeight: 800, color: '#675D53', fontFamily: 'var(--font-display)' }}>
                   更新公告
                 </span>
               </div>
               <img
-                src={`${import.meta.env.BASE_URL}next-icon.png`}
+                src={`${import.meta.env.BASE_URL}next-icon.webp`}
                 alt=""
                 style={{
                   width: 22, height: 'auto',
@@ -1055,7 +1769,7 @@ export default function Profile({ navigate }) {
                       padding: '9px 0', borderBottom: '1px solid var(--divider)',
                     }}>
                       <span style={{ fontSize: 12, color: 'var(--text-light)', fontWeight: 500 }}>版本</span>
-                      <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>v2.2</span>
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>v2.4</span>
                     </div>
                     <div
                       style={{
@@ -1132,7 +1846,7 @@ export default function Profile({ navigate }) {
                 </span>
               </div>
               <img
-                src={`${import.meta.env.BASE_URL}next-icon.png`}
+                src={`${import.meta.env.BASE_URL}next-icon.webp`}
                 alt=""
                 style={{
                   width: 22, height: 'auto',
@@ -1172,6 +1886,38 @@ export default function Profile({ navigate }) {
                   </svg>
                   去小红书找我聊
                 </a>
+
+                {/* 使用教程视频入口 */}
+                <div style={{ marginTop: 10, fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: 0.5, marginBottom: 6 }}>
+                  使用教程
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {[
+                    { label: 'v2.0 版本更新教程', url: 'https://www.xiaohongshu.com/explore/69ef84260000000038034e64' },
+                    { label: 'v1.0 基础刷取教程', url: 'https://www.xiaohongshu.com/explore/69e50d3f000000002102e5c8' },
+                  ].map(({ label, url }) => (
+                    <a
+                      key={label}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '9px 12px',
+                        borderRadius: 8,
+                        border: '1px solid rgba(75,156,70,0.3)',
+                        background: 'rgba(75,156,70,0.07)',
+                        textDecoration: 'none',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                        <span style={{ fontSize: 13 }}>▶</span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#4B9C46' }}>{label}</span>
+                      </div>
+                      <span style={{ fontSize: 11, color: '#4B9C46', fontWeight: 600 }}>去看看 →</span>
+                    </a>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -1195,13 +1941,6 @@ export default function Profile({ navigate }) {
                   onChange={e => { setFbContent(e.target.value); if (fbStatus === 'error') setFbStatus('idle'); }}
                 />
                 <div className="feedback-char-count">{fbContent.length} / 500</div>
-                <input
-                  className="feedback-contact-input"
-                  placeholder="联系方式（选填）：微信 / 小红书 / 邮箱…"
-                  value={fbContact}
-                  maxLength={100}
-                  onChange={e => setFbContact(e.target.value)}
-                />
                 {fbStatus === 'error' && <div className="feedback-error">提交失败，请稍后再试</div>}
                 <button
                   className="feedback-submit-btn"
@@ -1233,9 +1972,9 @@ export default function Profile({ navigate }) {
                     borderRight: i < 2 ? '1px solid var(--divider)' : 'none',
                     background: stat.bg,
                   }}>
-                    <div style={{ fontSize: 22, fontWeight: 900, color: stat.color, lineHeight: 1, fontFamily: 'var(--font-display)' }}>
+                    <div className="font-subtitle" style={{ fontSize: 22, fontWeight: 900, color: stat.color, lineHeight: 1 }}>
                       {stat.value}
-                      <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', marginLeft: 1 }}>{stat.unit}</span>
+                      <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', marginLeft: 1, fontFamily: 'var(--font-body)' }}>{stat.unit}</span>
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 5, fontWeight: 600 }}>{stat.label}</div>
                   </div>
@@ -1286,16 +2025,81 @@ export default function Profile({ navigate }) {
                 ▼ 最近记录（共 {tasks.length} 条）
               </div>
               {tasks.map((task, i) => (
-                <HistoryCard key={task.id || i} task={task} index={i} userPlanConfig={state.userPlanConfig} />
+                <HistoryCard
+                  key={task.id || i} task={task} index={i}
+                  userPlanConfig={state.userPlanConfig}
+                  onDetail={task.resultType !== 'abandoned' ? () => openDetail(task) : null}
+                />
               ))}
             </>
           )}
         </div>
       )}
 
+      {/* ══ 子页：刷取详情（全页面） ═══════════════════════════════════════════ */}
+      {subPage === 'detail' && detailTask && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 900,
+          overflowY: 'auto',
+        }}>
+          <TaskDetailPage
+            task={detailTask}
+            onBack={closeDetail}
+            userPlanConfig={state.userPlanConfig}
+          />
+        </div>
+      )}
+
       {/* 更新公告弹窗 */}
       {showChangelog && (
         <ChangelogModal onClose={() => setShowChangelog(false)} />
+      )}
+
+      {/* 答疑群二维码弹窗 */}
+      {showQRModal && (
+        <div
+          onClick={() => setShowQRModal(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(0,0,0,0.55)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#fff', borderRadius: 20,
+              padding: '24px 28px 20px',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
+              boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
+              maxWidth: 280, width: '80%',
+              position: 'relative',
+            }}
+          >
+            <button
+              onClick={() => setShowQRModal(false)}
+              style={{
+                position: 'absolute', top: 12, right: 14,
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 18, color: 'var(--text-muted)', lineHeight: 1,
+              }}
+            >✕</button>
+            <div style={{ fontSize: 16, fontWeight: 900, color: '#2B2A2E', fontFamily: 'var(--font-display)' }}>
+              加入用户反馈 &amp; 解答群
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>
+              扫码加入用户反馈2群（小红书）
+            </div>
+            <img
+              src={`${import.meta.env.BASE_URL}qrcode-feedback.webp`}
+              alt="答疑群二维码"
+              style={{ width: 180, height: 180, borderRadius: 12, objectFit: 'cover' }}
+            />
+            <div style={{ fontSize: 11, color: 'var(--text-light)', fontWeight: 500, textAlign: 'center', lineHeight: 1.6 }}>
+              有问题欢迎在群里反馈，<br />我看到会第一时间回复～
+            </div>
+          </div>
+        </div>
       )}
 
       {/* 邮箱绑定弹窗 */}

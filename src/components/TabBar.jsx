@@ -13,7 +13,9 @@ export default function TabBar({ current, onChange }) {
       style={{ backgroundImage: `url(${base}tab-bg.png?v=2)` }}
     >
       {TABS.map(tab => {
-        const isActive = current === tab.id;
+            // 'history' 属于「我的」tab 的子状态，高亮 profile
+            const effectiveCurrent = current === 'history' ? 'profile' : current;
+            const isActive = effectiveCurrent === tab.id;
         return (
           <button
             key={tab.id}

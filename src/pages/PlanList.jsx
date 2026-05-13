@@ -194,14 +194,14 @@ function AttrPlanCard({ plan, userPlans, spirits, completedTasks, activeTasks, o
             {isNoShiny
               ? poolShinies.length > 0
                 ? (
-                  <div style={{ fontSize: 16, fontWeight: 900, color: '#FBF7EC', fontFamily: 'var(--font-display)', lineHeight: 1 }}>
-                    {poolObtainedCount}<span style={{ fontSize: 10, fontWeight: 400, color: 'rgba(251,247,236,0.7)', marginLeft: 1 }}>/{poolShinies.length}</span>
+                  <div style={{ lineHeight: 1 }}>
+                    <span className="font-subtitle" style={{ fontSize: 16, fontWeight: 900, color: '#FBF7EC' }}>{poolObtainedCount}</span><span style={{ fontSize: 10, fontWeight: 400, color: 'rgba(251,247,236,0.7)', marginLeft: 1 }}>/{poolShinies.length}</span>
                   </div>
                 )
                 : <div style={{ fontSize: 9, color: 'rgba(251,247,236,0.6)', fontStyle: 'italic' }}>无异色</div>
               : (
-                <div style={{ fontSize: 16, fontWeight: 900, color: '#FBF7EC', fontFamily: 'var(--font-display)', lineHeight: 1 }}>
-                  {obtainedCount}<span style={{ fontSize: 10, fontWeight: 400, color: 'rgba(251,247,236,0.7)', marginLeft: 1 }}>/{shinies.length}</span>
+                <div style={{ lineHeight: 1 }}>
+                  <span className="font-subtitle" style={{ fontSize: 16, fontWeight: 900, color: '#FBF7EC' }}>{obtainedCount}</span><span style={{ fontSize: 10, fontWeight: 400, color: 'rgba(251,247,236,0.7)', marginLeft: 1 }}>/{shinies.length}</span>
                 </div>
               )
             }
@@ -221,7 +221,7 @@ function AttrPlanCard({ plan, userPlans, spirits, completedTasks, activeTasks, o
           </div>
           {!fruitReady && <FruitMissingBadge />}
           {!isNoShiny && fruitReady && (avgInfo
-            ? <span style={{ fontSize: 9, color: '#8B5C00', fontWeight: 700, flexShrink: 0 }}>均 <span style={{ fontSize: 11, fontFamily: 'var(--font-display)' }}>{avgInfo.avg}</span> 次破盾</span>
+            ? <span style={{ fontSize: 9, color: '#8B5C00', fontWeight: 700, flexShrink: 0 }}>均 <span className="font-subtitle" style={{ fontSize: 11 }}>{avgInfo.avg}</span> 次破盾</span>
             : <span style={{ fontSize: 9, color: 'var(--text-muted)', fontStyle: 'italic', flexShrink: 0 }}>暂无记录</span>
           )}
         </div>
@@ -304,8 +304,8 @@ function SeasonPlanCard({ plan, spirits, completedTasks, activeTasks, onClick, s
             {status === 'active' && (
               <div style={{ fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 20, background: 'rgba(251,247,236,0.25)', color: '#FBF7EC', border: '1px solid rgba(251,247,236,0.4)', marginBottom: 4, display: 'inline-block' }}>刷取中</div>
             )}
-            <div style={{ fontSize: 16, fontWeight: 900, color: '#FBF7EC', fontFamily: 'var(--font-display)', lineHeight: 1 }}>
-              {obtainedCount}<span style={{ fontSize: 10, fontWeight: 400, color: 'rgba(251,247,236,0.7)', marginLeft: 1 }}>/{plan.shinies.length}</span>
+            <div style={{ lineHeight: 1 }}>
+              <span className="font-subtitle" style={{ fontSize: 16, fontWeight: 900, color: '#FBF7EC' }}>{obtainedCount}</span><span style={{ fontSize: 10, fontWeight: 400, color: 'rgba(251,247,236,0.7)', marginLeft: 1 }}>/{plan.shinies.length}</span>
             </div>
             {allObtained && <div style={{ fontSize: 9, color: '#FBF7EC', fontWeight: 700, marginTop: 2 }}>✓ 已获得</div>}
           </div>
@@ -323,7 +323,7 @@ function SeasonPlanCard({ plan, spirits, completedTasks, activeTasks, onClick, s
           </div>
           {!fruitReady && <FruitMissingBadge />}
           {fruitReady && (avgInfo
-            ? <span style={{ fontSize: 9, color: '#8B5C00', fontWeight: 700, flexShrink: 0 }}>均 <span style={{ fontSize: 11, fontFamily: 'var(--font-display)' }}>{avgInfo.avg}</span> 次破盾</span>
+            ? <span style={{ fontSize: 9, color: '#8B5C00', fontWeight: 700, flexShrink: 0 }}>均 <span className="font-subtitle" style={{ fontSize: 11 }}>{avgInfo.avg}</span> 次破盾</span>
             : <span style={{ fontSize: 9, color: 'var(--text-muted)', fontStyle: 'italic', flexShrink: 0 }}>暂无记录</span>
           )}
         </div>
@@ -354,11 +354,45 @@ const FILTERS = [
   { key: 'custom', label: '自定义' },
 ];
 
+/* ─── 属系筛选选项 ────────────────────────────────────────────────────────────── */
+const ATTR_OPTIONS = [
+  { key: 'all',      label: '全部属系',  img: null,        color: null },
+  { key: 'fire',     label: '火系',      img: '火系.png',   color: '#E8733A' },
+  { key: 'ice',      label: '冰系',      img: '冰系.png',   color: '#42A5F5' },
+  { key: 'electric', label: '电系',      img: '电系.png',   color: '#FDD835' },
+  { key: 'phantom',  label: '幻系',      img: '幻系.png',   color: '#AB47BC' },
+  { key: 'grass',    label: '草系',      img: '草系.png',   color: '#66BB6A' },
+  { key: 'evil',     label: '恶系',      img: '恶系.png',   color: '#5D4037' },
+  { key: 'ghost',    label: '幽系',      img: '幽系.png',   color: '#7E57C2' },
+  { key: 'mech',     label: '机械系',    img: '机械系.png', color: '#78909C' },
+  { key: 'light',    label: '光系',      img: '光系.png',   color: '#FFB300' },
+  { key: 'cute',     label: '萌系',      img: '萌系.png',   color: '#E91E8C' },
+  { key: 'water',    label: '水系',      img: '水系.png',   color: '#1565C0' },
+];
+
+/** 从 plan.iconImg（如 ${base}attrs/fire.png）提取属系 key */
+function getPlanAttr(plan) {
+  const m = (plan.iconImg || '').match(/attrs\/(\w+)\.png/);
+  return m ? m[1] : null;
+}
+
 /* ─── 主页面 ─────────────────────────────────────────────────────────────────── */
 export default function PlanList({ navigate, mode = 'library', goBack }) {
   const { state } = useStore();
   const [filter, setFilter] = useState('all');
+  // 已确认生效的筛选状态
+  const [fruitFilter, setFruitFilter] = useState('all'); // 'all' | 'ready' | 'missing'
+  const [attrFilter, setAttrFilter]   = useState('all'); // 'all' | 'fire' | 'ice' | ...
+  // 筛选弹窗开关 + 弹窗内临时状态（点确认才同步到上面）
+  const [showFilterModal, setShowFilterModal]       = useState(false);
+  const [tempFruitFilter, setTempFruitFilter]       = useState('all');
+  const [tempAttrFilter,  setTempAttrFilter]        = useState('all');
   const [pickerTab, setPickerTab] = useState('all');
+
+  const openFilterModal  = () => { setTempFruitFilter(fruitFilter); setTempAttrFilter(attrFilter); setShowFilterModal(true); };
+  const confirmFilter    = () => { setFruitFilter(tempFruitFilter); setAttrFilter(tempAttrFilter); setShowFilterModal(false); };
+  const resetTempFilters = () => { setTempFruitFilter('all'); setTempAttrFilter('all'); };
+  const activeFilterCount = (fruitFilter !== 'all' ? 1 : 0) + (attrFilter !== 'all' ? 1 : 0);
 
   // noShiny 且有 attrId 的方案归属父属系二级页，不在主列表独立展示
   const attrPlans        = PLANS.filter(p => !p.season && !p.singleSpirit && !(p.noShiny && p.attrId));
@@ -405,9 +439,20 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
     if (status === 'idle' && !fruitReady) return 2;
     return 3; // done
   };
-  const sortedAttr   = [...attrWithStatus].sort((a, b) => sortKey(a) - sortKey(b));
-  const sortedSeason = [...seasonWithStatus].sort((a, b) => sortKey(a) - sortKey(b));
-  const sortedSingle = [...singleWithStatus].sort((a, b) => sortKey(a) - sortKey(b));
+  // 二维筛选：果实收录 + 属系
+  const applyFilters = (arr) => arr.filter(x => {
+    if (fruitFilter === 'ready'   && !x.fruitReady) return false;
+    if (fruitFilter === 'missing' &&  x.fruitReady) return false;
+    if (attrFilter !== 'all' && getPlanAttr(x.plan) !== attrFilter) return false;
+    return true;
+  });
+  const sortedAttr   = applyFilters([...attrWithStatus].sort((a, b) => sortKey(a) - sortKey(b)));
+  const sortedSeason = applyFilters([...seasonWithStatus].sort((a, b) => sortKey(a) - sortKey(b)));
+  const sortedSingle = applyFilters([...singleWithStatus].sort((a, b) => sortKey(a) - sortKey(b)));
+
+  // 自定义方案二维筛选（属系维度：有 iconImg 则匹配，否则不过滤）
+  const userPlansWithFruit = userPlans.map(p => ({ plan: p, fruitReady: isFruitReady(p, ownedFruits) }));
+  const filteredUserPlans  = applyFilters(userPlansWithFruit).map(x => x.plan);
 
   // library 模式分类显示控制
   const showAttr      = filter === 'all' || filter === 'attr';
@@ -436,7 +481,7 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
         <div style={{ padding: '20px 16px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
           {goBack && (
             <button className="back-btn" onClick={goBack} style={{ marginRight: 4 }}>
-              <img src={`${import.meta.env.BASE_URL}back-icon.png`} alt="返回" />
+              <img src={`${import.meta.env.BASE_URL}back-icon.webp`} alt="返回" />
             </button>
           )}
           <div>
@@ -637,6 +682,7 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
 
   // ── library 模式（主流程）──
   return (
+    <>
     <div style={{ paddingBottom: 24 }}>
 
       {/* ── 顶部总览数据模块（含标题+说明） ── */}
@@ -652,7 +698,7 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
       }}>
         {/* 右上角装饰图（向上超出卡片） */}
         <img
-          src={`${base}plan-deco.png`}
+          src={`${base}plan-deco.webp`}
           alt="" aria-hidden="true"
           style={{
             position: 'absolute',
@@ -666,9 +712,9 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
         />
         {/* 页面标题 + 说明 */}
         <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
-          <img src={`${base}icon-fruit-plan.png`} alt="" aria-hidden="true" style={{ width: 36, height: 36, objectFit: 'contain', flexShrink: 0 }} />
+          <img src={`${base}icon-fruit-plan.webp`} alt="" aria-hidden="true" style={{ width: 36, height: 36, objectFit: 'contain', flexShrink: 0 }} />
           <div>
-            <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--text)', fontFamily: 'var(--font-display)', marginBottom: 2 }}>果实方案库</div>
+            <div className="font-subtitle" style={{ fontSize: 16, fontWeight: 900, color: 'var(--text)', marginBottom: 2 }}>果实方案库</div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>查看和管理你的果实方案</div>
           </div>
         </div>
@@ -678,33 +724,34 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
         <div style={{ display: 'flex', gap: 0 }}>
           {/* 已完成 */}
           <div style={{ flex: 1, textAlign: 'center', borderRight: '1px solid var(--divider)' }}>
-            <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--success)', fontFamily: 'var(--font-display)', lineHeight: 1.2 }}>{doneCount}</div>
+            <div style={{ lineHeight: 1.2 }}><span className="font-subtitle" style={{ fontSize: 20, fontWeight: 900, color: 'var(--success)' }}>{doneCount}</span></div>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, marginTop: 3 }}>已完成</div>
           </div>
           {/* 刷取中 */}
           <div style={{ flex: 1, textAlign: 'center', borderRight: '1px solid var(--divider)' }}>
-            <div style={{ fontSize: 20, fontWeight: 900, color: '#C8830A', fontFamily: 'var(--font-display)', lineHeight: 1.2 }}>{activeCount}</div>
+            <div style={{ lineHeight: 1.2 }}><span className="font-subtitle" style={{ fontSize: 20, fontWeight: 900, color: '#C8830A' }}>{activeCount}</span></div>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, marginTop: 3 }}>刷取中</div>
           </div>
           {/* 待开始 */}
           <div style={{ flex: 1, textAlign: 'center' }}>
-            <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--text-light)', fontFamily: 'var(--font-display)', lineHeight: 1.2 }}>{idleCount}</div>
+            <div style={{ lineHeight: 1.2 }}><span className="font-subtitle" style={{ fontSize: 20, fontWeight: 900, color: 'var(--text-light)' }}>{idleCount}</span></div>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, marginTop: 3 }}>待开始</div>
           </div>
         </div>
       </div>
 
-      {/* ── 筛选栏（分类维度，与 picker 保持一致） ── */}
-      <div style={{ display: 'flex', gap: 6, padding: '0 16px 12px', overflowX: 'auto', scrollbarWidth: 'none' }}>
+      {/* ── 筛选栏第一行：方案分类 ── */}
+      <div style={{ display: 'flex', gap: 6, padding: '0 16px 8px', overflowX: 'auto', scrollbarWidth: 'none' }}>
         {FILTERS.map(f => {
           const active = filter === f.key;
           const isCustom = f.key === 'custom';
-          // 各分类计数
-          const count = f.key === 'all'    ? attrPlans.length + seasonPlans.length + singleSpiritPlans.length
-            : f.key === 'attr'   ? attrPlans.length
-            : f.key === 'season' ? seasonPlans.length
-            : f.key === 'single' ? singleSpiritPlans.length
-            : userPlans.length; // custom
+          // 各分类计数（受果实筛选影响）
+          const count = f.key === 'all'
+            ? sortedAttr.length + sortedSeason.length + sortedSingle.length + filteredUserPlans.length
+            : f.key === 'attr'   ? sortedAttr.length
+            : f.key === 'season' ? sortedSeason.length
+            : f.key === 'single' ? sortedSingle.length
+            : filteredUserPlans.length; // custom
           const customActiveStyle = isCustom && active
             ? { background: '#7E57C2', border: '2px solid #7E57C2', color: '#fff' }
             : isCustom && !active
@@ -728,17 +775,75 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
         })}
       </div>
 
+      {/* ── 第二行：高级筛选入口按钮 ── */}
+      <div style={{ display: 'flex', alignItems: 'center', padding: '0 16px 12px', gap: 8 }}>
+        {/* 当前生效的筛选摘要标签 */}
+        {activeFilterCount > 0 && (
+          <div style={{ display: 'flex', gap: 5, flex: 1, flexWrap: 'wrap' }}>
+            {fruitFilter !== 'all' && (
+              <span style={{
+                fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 20,
+                background: fruitFilter === 'ready' ? 'rgba(75,156,70,0.12)' : 'rgba(176,88,0,0.10)',
+                color: fruitFilter === 'ready' ? '#4B9C46' : '#B05800',
+                border: `1px solid ${fruitFilter === 'ready' ? 'rgba(75,156,70,0.35)' : 'rgba(176,88,0,0.3)'}`,
+              }}>
+                {fruitFilter === 'ready' ? '✓ 果实已集齐' : '✗ 果实未集齐'}
+              </span>
+            )}
+            {attrFilter !== 'all' && (() => {
+              const opt = ATTR_OPTIONS.find(o => o.key === attrFilter);
+              return opt ? (
+                <span style={{
+                  fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 20,
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  background: opt.color ? `${opt.color}18` : 'rgba(103,93,83,0.1)',
+                  color: opt.color || 'var(--text-muted)',
+                  border: `1px solid ${opt.color ? `${opt.color}55` : 'var(--divider)'}`,
+                }}>
+                  {opt.img && <img src={`${import.meta.env.BASE_URL}attrs18/${opt.img}`} alt="" style={{ width: 14, height: 14, objectFit: 'contain' }} />}
+                  {opt.label}
+                </span>
+              ) : null;
+            })()}
+          </div>
+        )}
+        {activeFilterCount === 0 && (
+          <span style={{ flex: 1, fontSize: 11, color: 'var(--text-muted)', opacity: 0.6 }}>可按属系 / 果实收录情况筛选</span>
+        )}
+        {/* 筛选按钮 */}
+        <button onClick={openFilterModal} style={{
+          flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5,
+          padding: '5px 12px', borderRadius: 20, cursor: 'pointer',
+          fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-body)',
+          border: activeFilterCount > 0 ? '2px solid var(--text)' : '1.5px solid var(--divider)',
+          background: activeFilterCount > 0 ? 'var(--text)' : 'var(--card)',
+          color: activeFilterCount > 0 ? 'var(--bg)' : 'var(--text-muted)',
+          transition: 'all 0.15s',
+          position: 'relative',
+        }}>
+          ⚙ 筛选
+          {activeFilterCount > 0 && (
+            <span style={{
+              fontSize: 9, fontWeight: 900,
+              background: '#C8830A', color: '#fff',
+              borderRadius: '50%', width: 14, height: 14,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            }}>{activeFilterCount}</span>
+          )}
+        </button>
+      </div>
+
       {/* ── 自定义方案区块（全部模式下置顶） ── */}
       {showCustomLib && (
         <>
           <div style={{ padding: '0 16px 7px', display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)' }}>自定义方案</span>
-            <span style={{ fontSize: 10, color: 'var(--text-muted)', opacity: 0.6 }}>{userPlans.length} 个</span>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', opacity: 0.6 }}>{filteredUserPlans.length} 个</span>
           </div>
           {/* 已有自定义方案列表 */}
-          {userPlans.length > 0 && (
+          {filteredUserPlans.length > 0 && (
             <div style={{ padding: '0 16px' }}>
-              {userPlans.map(plan => {
+              {filteredUserPlans.map(plan => {
                 const isActive = activePlanIds.has(plan.id);
                 return (
                 <div
@@ -797,7 +902,13 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
               还没有自定义方案，点击下方新建吧
             </div>
           )}
-          <div style={{ padding: userPlans.length > 0 ? '4px 16px 0' : '0 16px 0' }}>
+          {/* 果实筛选后无结果时提示 */}
+          {userPlans.length > 0 && filteredUserPlans.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '12px 16px 4px', color: 'var(--text-muted)', fontSize: 12 }}>
+              当前果实筛选下无符合条件的自定义方案
+            </div>
+          )}
+          <div style={{ padding: filteredUserPlans.length > 0 ? '4px 16px 0' : '0 16px 0' }}>
             <div
               className="plan-card"
               onClick={() => navigate('customChecklist', { saveOnly: true })}
@@ -828,11 +939,11 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
       )}
 
       {/* ── 属性混抓方案列表 ── */}
-      {showAttr && (
+      {showAttr && sortedAttr.length > 0 && (
         <>
           <div style={{ padding: `${showCustomLib ? '10px' : '0'} 16px 7px`, display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)' }}>属性混抓</span>
-            <span style={{ fontSize: 10, color: 'var(--text-muted)', opacity: 0.6 }}>{attrPlans.length} 个</span>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', opacity: 0.6 }}>{sortedAttr.length} 个</span>
           </div>
           {sortedAttr.map(({ plan, fruitReady }) => (
             <AttrPlanCard
@@ -855,7 +966,7 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
         <>
           <div style={{ padding: `${showAttr || showCustomLib ? '10px' : '0'} 16px 7px`, display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)' }}>单刷奇遇</span>
-            <span style={{ fontSize: 10, color: 'var(--text-muted)', opacity: 0.6 }}>{seasonPlans.length} 个</span>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', opacity: 0.6 }}>{sortedSeason.length} 个</span>
           </div>
           {sortedSeason.map(({ plan, fruitReady }) => (
             <SeasonPlanCard
@@ -876,7 +987,7 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
         <>
           <div style={{ padding: `${showAttr || showSeason || showCustomLib ? '10px' : '0'} 16px 7px`, display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)' }}>单刷异色</span>
-            <span style={{ fontSize: 10, color: 'var(--text-muted)', opacity: 0.6 }}>{singleSpiritPlans.length} 个</span>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', opacity: 0.6 }}>{sortedSingle.length} 个</span>
           </div>
           {sortedSingle.map(({ plan, fruitReady }) => (
             <SeasonPlanCard
@@ -893,6 +1004,133 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
         </>
       )}
 
+      {/* ── 全部筛选后无结果提示 ── */}
+      {sortedAttr.length === 0 && sortedSeason.length === 0 && sortedSingle.length === 0 && filteredUserPlans.length === 0 && activeFilterCount > 0 && (
+        <div style={{ textAlign: 'center', padding: '32px 24px', color: 'var(--text-muted)' }}>
+          <div style={{ fontSize: 28, marginBottom: 8 }}>🔍</div>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>没有符合条件的方案</div>
+          <div style={{ fontSize: 11, opacity: 0.7 }}>尝试调整筛选条件</div>
+          <button onClick={() => { setFruitFilter('all'); setAttrFilter('all'); }} style={{
+            marginTop: 12, padding: '6px 16px', borderRadius: 20, border: '1.5px solid var(--divider)',
+            background: 'var(--card)', color: 'var(--text-muted)', fontSize: 12, fontWeight: 700,
+            cursor: 'pointer', fontFamily: 'var(--font-body)',
+          }}>清除筛选</button>
+        </div>
+      )}
+
     </div>
+
+    {/* ── 高级筛选弹窗（挂在 Fragment 内，fixed 定位脱离文档流） ── */}
+    {showFilterModal && (
+      <>
+        {/* 遮罩 */}
+        <div
+          onClick={() => setShowFilterModal(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          {/* 居中弹窗（阻止点击冒泡到遮罩） */}
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              position: 'relative', zIndex: 301,
+              background: 'var(--card)', borderRadius: 20,
+              boxShadow: '0 8px 40px rgba(0,0,0,0.22)',
+              display: 'flex', flexDirection: 'column',
+              width: 'min(92vw, 380px)', maxHeight: '80dvh',
+            }}
+          >
+          {/* 标题栏 */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 16px 12px', borderBottom: '1px solid var(--divider)' }}>
+            <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--text)', fontFamily: 'var(--font-display)' }}>⚙ 方案筛选</div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button onClick={resetTempFilters} style={{ border: 'none', background: 'transparent', fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer', fontWeight: 700, fontFamily: 'var(--font-body)' }}>重置</button>
+              <button onClick={() => setShowFilterModal(false)} style={{ border: 'none', background: 'transparent', fontSize: 16, color: 'var(--text-muted)', cursor: 'pointer', lineHeight: 1, padding: '0 2px' }}>✕</button>
+            </div>
+          </div>
+
+          {/* 内容区（可滚动） */}
+          <div style={{ overflowY: 'auto', flex: 1, padding: '16px 16px 8px' }}>
+
+            {/* ── 维度1：果实收录情况 ── */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', marginBottom: 10, letterSpacing: 0.5 }}>🌰 果实收录情况</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {[
+                  { key: 'all',     label: '全部',         color: null },
+                  { key: 'ready',   label: '✓ 已收录齐全', color: '#4B9C46' },
+                  { key: 'missing', label: '✗ 未收录齐全', color: '#B05800' },
+                ].map(f => {
+                  const active = tempFruitFilter === f.key;
+                  return (
+                    <button key={f.key} onClick={() => setTempFruitFilter(f.key)} style={{
+                      padding: '6px 14px', borderRadius: 20, cursor: 'pointer',
+                      fontSize: 12, fontWeight: active ? 800 : 600,
+                      fontFamily: 'var(--font-body)', transition: 'all 0.15s',
+                      border: active
+                        ? `2px solid ${f.color || 'var(--text)'}`
+                        : '1.5px solid var(--divider)',
+                      background: active
+                        ? (f.color || 'var(--text)')
+                        : 'var(--card)',
+                      color: active ? '#fff' : 'var(--text-muted)',
+                    }}>
+                      {f.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ── 维度2：方案属系 ── */}
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', marginBottom: 10, letterSpacing: 0.5 }}>🌈 方案属系</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {ATTR_OPTIONS.map(opt => {
+                  const active = tempAttrFilter === opt.key;
+                  return (
+                    <button key={opt.key} onClick={() => setTempAttrFilter(opt.key)} style={{
+                      padding: '6px 12px', borderRadius: 20, cursor: 'pointer',
+                      fontSize: 12, fontWeight: active ? 800 : 600,
+                      fontFamily: 'var(--font-body)', transition: 'all 0.15s',
+                      display: 'inline-flex', alignItems: 'center', gap: 5,
+                      border: active
+                        ? `2px solid ${opt.color || 'var(--text)'}`
+                        : '1.5px solid var(--divider)',
+                      background: active
+                        ? (opt.color || 'var(--text)')
+                        : 'var(--card)',
+                      color: active
+                        ? (opt.key === 'electric' ? '#2B2A2E' : '#fff')
+                        : 'var(--text-muted)',
+                    }}>
+                      {opt.img
+                        ? <img src={`${import.meta.env.BASE_URL}attrs18/${opt.img}`} alt="" style={{ width: 16, height: 16, objectFit: 'contain' }} />
+                        : '🌟'
+                      }
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+          </div>
+
+          {/* 底部确认按钮 */}
+          <div style={{ padding: '12px 16px 16px', borderTop: '1px solid var(--divider)' }}>
+            <button onClick={confirmFilter} style={{
+              width: '100%', padding: '12px', borderRadius: 12,
+              background: 'var(--text)', color: 'var(--bg)',
+              fontSize: 14, fontWeight: 900, fontFamily: 'var(--font-display)',
+              border: 'none', cursor: 'pointer', letterSpacing: 0.5,
+            }}>
+              确认筛选
+            </button>
+          </div>
+          </div>{/* 弹窗容器结束 */}
+        </div>{/* 遮罩结束 */}
+      </>
+    )}
+    </>
   );
 }

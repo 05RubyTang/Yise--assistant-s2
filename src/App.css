@@ -5,6 +5,24 @@
 
 @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Sans+SC:wght@400;500;600;700;800;900&display=swap');
 
+/* ---- 胖门正道标题体 ---- */
+@font-face {
+  font-family: 'PangMenZhengDao';
+  src: url('/fonts/PangMenZhengDao.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ---- 阿里妈妈数黑体（精灵名标题）---- */
+@font-face {
+  font-family: 'AlimamaShuHeiTi';
+  src: url('/fonts/AlimamaShuHeiTi-Bold.otf') format('opentype');
+  font-weight: bold;
+  font-style: normal;
+  font-display: swap;
+}
+
 
 :root {
   /* ---- 核心配色（洛克王国官方风格）---- */
@@ -53,8 +71,28 @@
   --shadow-card: 0 2px 0 #675D53;   /* 卡片底部厚边（立体感） */
 
   /* ---- 字体 ---- */
-  --font-display: 'PingFang SC', -apple-system, 'Helvetica Neue', sans-serif;
-  --font-body:    'Noto Sans SC', -apple-system, 'PingFang SC', sans-serif;
+  --font-display:  'PingFang SC', -apple-system, 'Helvetica Neue', sans-serif;
+  --font-body:     'Noto Sans SC', -apple-system, 'PingFang SC', sans-serif;
+  --font-subtitle: 'PangMenZhengDao', 'PingFang SC', -apple-system, sans-serif;
+  --font-spirit:   'AlimamaShuHeiTi', 'PingFang SC', -apple-system, sans-serif;
+}
+
+/* ---- 胖门正道标题体辅助类（纵向微拉伸，补偿字形偏扁）---- */
+.font-subtitle {
+  font-family: var(--font-subtitle);
+  display: inline-block;
+  transform: scaleY(1.1);
+  transform-origin: center bottom;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---- 阿里妈妈数黑体辅助类（精灵名标题，纵向微拉伸）---- */
+.font-spirit {
+  font-family: var(--font-spirit);
+  display: inline-block;
+  transform: scaleY(1.08);
+  transform-origin: center bottom;
 }
 
 /* ---- 全局重置 ---- */
@@ -166,7 +204,7 @@ body {
   overflow: hidden;
   transform: translateZ(0);
   background-color: var(--bg);
-  background-image: url('/home-page-bg.png');
+  background-image: url('/home-page-bg.webp');
   background-size: 100% auto;
   background-position: top center;
   background-repeat: no-repeat;
@@ -226,6 +264,10 @@ body {
   padding-bottom: 68px;
 }
 .page-container::-webkit-scrollbar { display: none; }
+
+/* 隐藏 body 原生滚动条（用于详情页全屏覆盖时） */
+body.hide-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+body.hide-scrollbar::-webkit-scrollbar { display: none; }
 
 /* ====================================================
    通用卡片
@@ -681,20 +723,20 @@ body {
   position: relative;
 }
 .shield-dot.original {
-  background: var(--success);
+  background: #fff;
   border-color: #3A8435;
 }
 .shield-dot.polluted {
-  background: var(--polluted);
+  background: #fff;
   border-color: #7038A0;
 }
 .shield-dot.shiny {
-  background: var(--shiny);
+  background: #fff;
   border-color: #C8830A;
   animation: shinyPulse 1.5s ease-in-out infinite;
 }
 .shield-dot.jelly {
-  background: #FFF3CC;
+  background: #fff;
   border-color: #C8A020;
 }
 .shield-dot.latest {
@@ -1299,6 +1341,33 @@ body {
   align-items: center;
   justify-content: center;
   padding: 0;
+}
+
+/* 警告型 Toast（offline / syncError / networkWarn）：橙色边框 + 深橙标题 */
+.auth-toast--warn {
+  border-color: rgba(255,160,50,0.5);
+  background: #2B2519;
+}
+.auth-toast--warn .auth-toast-title {
+  color: #FFB347;
+}
+
+/* networkWarn 专属：「重试连接」行动按钮 */
+.auth-toast-retry {
+  margin-top: 6px;
+  padding: 4px 10px;
+  border: 1px solid rgba(255,160,50,0.55);
+  border-radius: 6px;
+  background: rgba(255,160,50,0.12);
+  color: #FFB347;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1.4;
+  transition: background 0.15s;
+}
+.auth-toast-retry:hover {
+  background: rgba(255,160,50,0.22);
 }
 
 /* ── 邮箱状态标签（卡片内） ── */

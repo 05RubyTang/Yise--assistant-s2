@@ -32,34 +32,61 @@ _fontStyle.textContent = `
 `;
 document.head.appendChild(_fontStyle);
 
-const TAB_PAGES = ['home', 'plans', 'collection', 'profile'];
+const TAB_PAGES = ['home', 'plans', 'collection', 'profile', 'history'];
 
 // ─── 绑定成功全局 Toast ───────────────────────────────────────────────────────
 function AuthToast() {
-  const { authToast, clearAuthToast } = useStore();
+  const { authToast, clearAuthToast, retryOfflineNow } = useStore();
+
+  // networkWarn 不自动消失（需用户手动点重试或关闭）；offline / syncError 10s；其他 6s
+  const isWarning     = authToast?.type === 'offline' || authToast?.type === 'syncError';
+  const isNetworkWarn = authToast?.type === 'networkWarn';
 
   useEffect(() => {
     if (!authToast) return;
-    const timer = setTimeout(clearAuthToast, 6000); // 6 秒后自动消失
+    if (isNetworkWarn) return; // networkWarn 不设超时，由用户主动关闭
+    const timer = setTimeout(clearAuthToast, isWarning ? 10000 : 6000);
     return () => clearTimeout(timer);
-  }, [authToast, clearAuthToast]);
+  }, [authToast, clearAuthToast, isWarning, isNetworkWarn]);
 
   if (!authToast) return null;
 
   const toastCfg = {
-    bind:   { icon: '🎉', title: '邮箱绑定成功！' },
-    login:  { icon: '✅', title: '登录成功，数据已恢复！' },
-    switch: { icon: '🔄', title: '已切换账号！' },
+    bind:        { icon: '🎉', title: '邮箱绑定成功！' },
+    login:       { icon: '✅', title: '登录成功，数据已恢复！' },
+    switch:      { icon: '🔄', title: '已切换账号！' },
+    offline:     { icon: '📴', title: '网络连接失败', sub: '已切换至本地模式，数据暂不同步' },
+    syncError:   { icon: '⚠️', title: '云端同步失败', sub: '数据已保存在本地，联网后将自动重试' },
+    networkWarn: { icon: '📡', title: '云端同步失败，数据保存在本地' },
   }[authToast.type] ?? { icon: '✅', title: '操作成功！' };
 
+  function handleRetry() {
+    retryOfflineNow();
+    clearAuthToast();
+  }
+
   return (
-    <div className="auth-toast" onClick={clearAuthToast}>
+    <div
+      className={`auth-toast${(isWarning || isNetworkWarn) ? ' auth-toast--warn' : ''}`}
+      // networkWarn 有操作按钮，整体不响应点击关闭（避免误触）
+      onClick={isNetworkWarn ? undefined : clearAuthToast}
+      style={isNetworkWarn ? { cursor: 'default' } : undefined}
+    >
       <div className="auth-toast-icon">{toastCfg.icon}</div>
       <div className="auth-toast-body">
         <div className="auth-toast-title">{toastCfg.title}</div>
-        <div className="auth-toast-email">{authToast.email}</div>
+        {!isNetworkWarn && (authToast.email
+          ? <div className="auth-toast-email">{authToast.email}</div>
+          : toastCfg.sub
+            ? <div className="auth-toast-email">{toastCfg.sub}</div>
+            : null
+        )}
+        {/* networkWarn 专属：重试按钮嵌在 body 内，与标题同行排列 */}
+        {isNetworkWarn && (
+          <button className="auth-toast-retry" onClick={handleRetry}>重试连接</button>
+        )}
       </div>
-      <button className="auth-toast-close">✕</button>
+      <button className="auth-toast-close" onClick={isNetworkWarn ? clearAuthToast : undefined}>✕</button>
     </div>
   );
 }
@@ -122,7 +149,7 @@ function AppInner() {
       case 'collection':
         return <Collection />;
       case 'history':
-        return <Profile navigate={navigate} />;
+        return <Profile navigate={navigate} initialDetailTaskId={current.params.openTaskId ?? null} />;
       case 'profile':
         return <Profile navigate={navigate} />;
       case 'manualShiny':
@@ -196,7 +223,7 @@ function AppInner() {
   );
 }
 
-const bgUrl = `url(${import.meta.env.BASE_URL}bg.png)`;
+const bgUrl = `url(${import.meta.env.BASE_URL}bg.webp)`;
 
 export default function App() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 500);

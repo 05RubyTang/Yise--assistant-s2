@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../store';
-import { PLANS, classifyResultType } from '../data/plans';
+import { PLANS, classifyResultType, getPlanAttrId, computeFamilyPool, resolvePlanIconImg } from '../data/plans';
 import SpiritAvatar from '../components/SpiritAvatar';
 import PlanIcon from '../components/PlanIcon';
 import { FruitLine } from '../components/FruitTag';
@@ -10,7 +10,7 @@ import ShinySelectModal from '../components/ShinySelectModal';
 import BreakSpiritModal from '../components/BreakSpiritModal';
 
 export default function Recorder({ planId, navigate }) {
-  const { state, dispatch } = useStore();
+  const { state, dispatch, poolCounts } = useStore();
   const task = (state.activeTasks || []).find(t => t.planId === planId);
   const rawPlan = PLANS.find(p => p.id === planId)
     || (state.userPlanConfig || []).find(p => p.id === planId);
@@ -20,7 +20,7 @@ export default function Recorder({ planId, navigate }) {
     ...rawPlan,
     type:    rawPlan.type    || rawPlan.label || '自定义方案',
     shinies: Array.isArray(rawPlan.shinies) ? rawPlan.shinies : [],
-    iconImg: rawPlan.iconImg || attrBase?.iconImg || null,
+    iconImg: resolvePlanIconImg(rawPlan, attrBase),
     icon:    rawPlan.icon    || attrBase?.icon    || '✨',
   } : null;
 
@@ -219,7 +219,7 @@ export default function Recorder({ planId, navigate }) {
       {/* 顶部 header */}
       <div className="page-header" style={{ justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button className="back-btn" onClick={handleExit}><img src={`${import.meta.env.BASE_URL}back-icon.png`} alt="返回" /></button>
+          <button className="back-btn" onClick={handleExit}><img src={`${import.meta.env.BASE_URL}back-icon.webp`} alt="返回" /></button>
           {/* 属性图标 */}
           <div style={{
             width: 36, height: 36, borderRadius: 10,
@@ -253,13 +253,13 @@ export default function Recorder({ planId, navigate }) {
         margin: '0 16px 16px',
         borderRadius: 16,
         overflow: 'hidden',
-        backgroundImage: `url(${import.meta.env.BASE_URL}card-frame-detail.png)`,
+        backgroundImage: `url(${import.meta.env.BASE_URL}card-frame-detail.webp)`,
         backgroundSize: '100% 100%',
         backgroundRepeat: 'no-repeat',
       }}>
         {/* 深色标题条 */}
         <div style={{
-          background: '#2B2A2E',
+          background: 'rgb(2 2 2 / 0%)',
           padding: '12px 14px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
         }}>
@@ -289,13 +289,13 @@ export default function Recorder({ planId, navigate }) {
           {/* 右：已获得/总数（仅有 shinies 时展示） */}
           {plan.shinies.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 1, flexShrink: 0 }}>
-              <span className="font-subtitle" style={{ fontSize: 20, fontWeight: 900, color: '#fff' }}>
-                {plan.shinies.filter(n => state.spirits[n]?.obtained).length}
-              </span>
-              <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', fontWeight: 600 }}>
-                /{plan.shinies.length}
-              </span>
-            </div>
+                <span className="font-subtitle" style={{ fontSize: 20, fontWeight: 900, color: '#fff' }}>
+                  {plan.shinies.filter(n => state.spirits[n]?.obtained).length}
+                </span>
+                <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', fontWeight: 600 }}>
+                  /{plan.shinies.length}
+                </span>
+              </div>
           )}
         </div>
         {/* 正常内容区 */}
@@ -372,7 +372,7 @@ export default function Recorder({ planId, navigate }) {
         className="recorder-btn-break"
         onClick={() => setShowResult(true)}
       >
-        <img src={`${import.meta.env.BASE_URL}break-shield.png`} alt="触发污染" style={{ width: 32, height: 32, objectFit: 'contain' }} />
+        <img src={`${import.meta.env.BASE_URL}break-shield.webp`} alt="触发污染" style={{ width: 32, height: 32, objectFit: 'contain' }} />
         <span>记录一次触发污染</span>
       </button>
 
@@ -758,7 +758,15 @@ export default function Recorder({ planId, navigate }) {
       )}
 
       {/* 触发污染色块（始终显示，0 条记录时显示空格子） */}
-      <div className="card">
+      <div className="card" style={{
+        backgroundImage: `url(${import.meta.env.BASE_URL}card-breaks.webp)`,
+        backgroundSize: '100% auto',
+        backgroundRepeat: 'repeat-y',
+        backgroundPosition: 'top center',
+        backgroundColor: 'transparent',
+        border: '0px',
+        boxShadow: 'none',
+      }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
           <span className="font-subtitle" style={{ fontSize: 13, fontWeight: 800 }}>触发污染记录</span>
           <div style={{ display: 'flex', gap: 10, fontSize: 11, fontWeight: 700 }}>
@@ -976,6 +984,88 @@ export default function Recorder({ planId, navigate }) {
           )}
         </div>
       </div>
+
+      {/* ── 三池实时进度仪表盘 ── */}
+      {(() => {
+        const attrId = getPlanAttrId(plan);
+        const familyPool = computeFamilyPool(task, plan);
+        const worldPool = poolCounts?.worldPool || 0;
+        const attrPoolCount = attrId ? ((poolCounts?.attrPools || {})[attrId] || 0) : 0;
+
+        const FAMILY_LIMIT = 80;
+        const ATTR_LIMIT = 80;
+        const WORLD_LIMIT = 80;
+
+        // 单条进度行（内联组件）
+        const MiniPoolRow = ({ dotColor, label, count, limit }) => {
+          const pct = Math.min(count / limit, 1);
+          const isHigh = pct >= 0.85;
+          const barColor = isHigh ? '#C8351A' : dotColor;
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, flex: 1 }}>
+              <span style={{
+                width: 7, height: 7, borderRadius: '50%',
+                background: dotColor, flexShrink: 0, display: 'inline-block',
+              }} />
+              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', flexShrink: 0, minWidth: 42 }}>{label}</span>
+              <div style={{ flex: 1, height: 5, borderRadius: 3, background: 'rgba(103,93,83,0.15)', overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%', borderRadius: 3,
+                  width: `${pct * 100}%`,
+                  background: barColor,
+                  transition: 'width 0.4s ease',
+                }} />
+              </div>
+              <span style={{
+                fontSize: 11, fontWeight: 900, fontFamily: 'var(--font-display)',
+                color: isHigh ? '#C8351A' : dotColor,
+                flexShrink: 0, minWidth: 30, textAlign: 'right',
+              }}>
+                {count}<span style={{ fontSize: 9, fontWeight: 400, color: 'var(--text-muted)' }}>/{limit}</span>
+              </span>
+            </div>
+          );
+        };
+
+        return (
+          <div style={{
+            margin: '10px 16px 0',
+            borderRadius: 12,
+            border: '1.5px solid rgba(103,93,83,0.18)',
+            background: '#FBF7EC',
+            padding: '10px 14px 10px',
+          }}>
+            <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', letterSpacing: 0.5, marginBottom: 8 }}>
+              三池实时进度
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+              <MiniPoolRow
+                dotColor="#C8830A"
+                label={`家族池`}
+                count={familyPool}
+                limit={FAMILY_LIMIT}
+              />
+              {attrId && (
+                <MiniPoolRow
+                  dotColor={plan.color || '#E8A020'}
+                  label={`${plan.type || '系别'}池`}
+                  count={attrPoolCount}
+                  limit={ATTR_LIMIT}
+                />
+              )}
+              <MiniPoolRow
+                dotColor="#7E57C2"
+                label="世界池"
+                count={worldPool}
+                limit={WORLD_LIMIT}
+              />
+            </div>
+            <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 7, lineHeight: 1.5 }}>
+              家族池出货后重置 · 系别池 / 世界池全局累计不清空
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 三池机制说明 */}
       <div style={{

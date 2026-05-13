@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { getWikiSpiritImg } from '../data/spirits-wiki';
+import { LOCAL_SPIRIT_FILES } from '../data/local-assets';
 
 const base = import.meta.env.BASE_URL;
 
@@ -11,16 +12,18 @@ const SPIRIT_IMG_FILE = {
 
 /**
  * 精灵头像组件
- * 优先加载本地 public/spirits/{name}.png
- * 本地不存在时自动 fallback 到 BWIKI 立绘图
+ * 优先加载本地 public/spirits/{name}.png（仅当本地已知有该文件时）
+ * 本地不存在时直接使用 BWIKI 立绘图，避免无意义的 404 请求
  */
 export default function SpiritAvatar({ name, obtained, size = 48, showName = true, bare = false }) {
   const fileName = SPIRIT_IMG_FILE[name] || name;
-  const localSrc = `${base}spirits/${encodeURIComponent(fileName)}.png`;
+  const hasLocal = LOCAL_SPIRIT_FILES.has(fileName);
+  const localSrc = hasLocal ? `${base}spirits/${encodeURIComponent(fileName)}.png` : null;
   const wikiSrc = getWikiSpiritImg(name);
 
-  const [src, setSrc] = useState(localSrc);
-  const [triedWiki, setTriedWiki] = useState(false);
+  // 若本地有图就先用本地，否则直接用 wiki
+  const [src, setSrc] = useState(localSrc || wikiSrc || '');
+  const [triedWiki, setTriedWiki] = useState(!hasLocal);
 
   const handleError = (e) => {
     if (!triedWiki && wikiSrc) {
@@ -42,6 +45,7 @@ export default function SpiritAvatar({ name, obtained, size = 48, showName = tru
       <img
         src={src}
         alt={name}
+        loading="lazy"
         style={{
           width: size, height: size,
           objectFit: 'contain',
@@ -69,6 +73,7 @@ export default function SpiritAvatar({ name, obtained, size = 48, showName = tru
         <img
           src={src}
           alt={name}
+          loading="lazy"
           style={{ opacity: obtained ? 1 : 0.5 }}
           onError={handleError}
         />

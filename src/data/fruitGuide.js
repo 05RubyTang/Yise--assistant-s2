@@ -17,13 +17,15 @@ export const ATTR_CONFIG = {
   '机械系': { color: '#78909C', bg: '#EEF2F3', icon: `${base}attrs/mech.png` },
   '光系':   { color: '#C8830A', bg: '#FFF8E6', icon: `${base}attrs/light.png` },
   '水系':   { color: '#0288D1', bg: '#E6F4FF', icon: `${base}attrs/water.png` },
-  '萌系':   { color: '#E91E8C', bg: '#FEE8F4' },
-  '岩系':   { color: '#8D6E63', bg: '#F4F0ED' },
-  '毒系':   { color: '#8E24AA', bg: '#F8EAFF' },
+  '萌系':   { color: '#E91E8C', bg: '#FEE8F4', icon: `${base}attrs/cute.png` },
+  '岩系':   { color: '#8D6E63', bg: '#F4F0ED', icon: `${base}attrs/ground.png` },
+  '毒系':   { color: '#8E24AA', bg: '#F8EAFF', icon: `${base}attrs/poison.png` },
   '龙系':   { color: '#5E35B1', bg: '#EDE7FF', icon: `${base}attrs/dragon.png` },
   '翼系':   { color: '#5BA8F5', bg: '#EAF3FF', icon: `${base}attrs/wing.png` },
   '普通系': { color: '#9E9E9E', bg: '#F5F5F5', icon: `${base}attrs/normal.png` },
   '地系':   { color: '#C8A045', bg: '#FFF8E7', icon: `${base}attrs/ground.png` },
+  '虫系':   { color: '#7CB342', bg: '#F1F8E9', icon: `${base}attrs/bug.png` },
+  '武系':   { color: '#D84315', bg: '#FBE9E7', icon: `${base}attrs/fighting.png` },
 };
 
 /**
@@ -111,7 +113,7 @@ export const FRUIT_GUIDE_TABS = [
         fruit: '恶魔狼果实',
         spirit: '恶魔狼',
         attrs: ['恶系'],
-        unlock: '抓/进化 20 只恶魔狼/幽朔夜伊芙',
+        unlock: '抓/进化 20 只恶魔狼',
         usedInPlan: '刷异色方案',
       },
       {
@@ -132,9 +134,9 @@ export const FRUIT_GUIDE_TABS = [
         fruit: '独角兽果实',
         spirit: '独角兽',
         attrs: ['光系'],
-        unlock: '抓/进化 20 只独角兽/小独角兽',
+        unlock: '抓/进化 20 只独角兽',
         usedInPlan: '刷异色方案',
-        tip: '光系池可产出疾光千兽/绒仙子/嗜光嗡嗡异色',
+        tip: '单刷此果实时光系池只可产出嗜光嗡嗡异色；搭配犀角鸟果实可额外产出疾光千兽，搭配绒绒果实可额外产出绒仙子',
       },
       {
         fruit: '治愈兔果实',
@@ -158,6 +160,13 @@ export const FRUIT_GUIDE_TABS = [
         unlock: '抓/进化 20 只菊花梨',
         usedInPlan: '积累池权重',
         tip: '萌系池可产出大耳帽兜/治愈兔异色',
+      },
+      {
+        fruit: '公平鸽果实',
+        spirit: '公平鸽',
+        attrs: ['普通系'],
+        unlock: '抓/进化 20 只公平鸽',
+        tip: '普通系池权重，常用于自定义方案',
       },
     ],
   },
@@ -469,6 +478,35 @@ export const FRUIT_GUIDE_TABS = [
   },
 ];
 
+// ── attrId（plans.js 英文 id）↔ 中文 label 映射 ───────────────────────────────
+// plans.js 的 attrId 用英文（fire/ice/...），fruitGuide 与 ATTR_CONFIG 用中文 key（火系/冰系/...）。
+// customFruits 同步、entries 渲染都需要这张映射。覆盖 19 个属系，与 CustomChecklist 的 ATTR_OPTIONS_FULL 对齐。
+export const ATTR_ID_TO_LABEL = {
+  fire: '火系',
+  ice: '冰系',
+  electric: '电系',
+  phantom: '幻系',
+  grass: '草系',
+  evil: '恶系',
+  ghost: '幽系',
+  mech: '机械系',
+  light: '光系',
+  water: '水系',
+  cute: '萌系',
+  normal: '普通系',
+  earth: '岩系',
+  wing: '翼系',
+  dragon: '龙系',
+  poison: '毒系',
+  ground: '地系',
+  bug: '虫系',
+  fighting: '武系',
+};
+
+/** 中文 label → attrId 反查（少数几次手动选属性时使用） */
+export const LABEL_TO_ATTR_ID = Object.entries(ATTR_ID_TO_LABEL)
+  .reduce((acc, [id, label]) => { acc[label] = id; return acc; }, {});
+
 // ── 工具函数 ──────────────────────────────────────────────────────────────────
 
 /** 获取某 Tab 下所有 entries（扁平化） */
@@ -486,4 +524,48 @@ export function getAllEntries() {
 export function getTabAttrs(tab) {
   const entries = getTabEntries(tab);
   return [...new Set(entries.flatMap(e => e.attrs || []))];
+}
+
+/**
+ * 把 customFruits 里的一条记录转成 entry 格式（与 catch Tab 静态条目同构）
+ * - attrs：优先用记录里的 attrs（中文系名数组），其次按 attrId 反查
+ * - 标记 custom: true / source 字段，便于 UI 渲染自建角标和编辑/删除
+ */
+export function customFruitToEntry(c) {
+  if (!c || !c.fruit) return null;
+  let attrs = Array.isArray(c.attrs) && c.attrs.length > 0
+    ? c.attrs
+    : (c.attrId && ATTR_ID_TO_LABEL[c.attrId] ? [ATTR_ID_TO_LABEL[c.attrId]] : []);
+  return {
+    fruit: c.fruit,
+    spirit: c.spirit || c.fruit.replace(/果实$/, ''),
+    attrs,
+    unlock: c.unlock || '自定义',
+    tip: c.tip || '',
+    custom: true,                        // 渲染层用：自建角标
+    source: c.source || 'manual',        // 'manual' / 'plan'
+    fromPlanId: c.fromPlanId || null,
+    createdAt: c.createdAt,
+    updatedAt: c.updatedAt,
+  };
+}
+
+/**
+ * 合并自建果实到指定 Tab 的 entries
+ * - 仅 catch Tab 合并，其他 Tab 原样返回 getTabEntries(tab)
+ * - 过滤掉 deleted=true 的墓碑记录
+ * - 按 fruit name 去重：内置已存在 → 保留内置（不被自建覆盖）
+ * - 自建条目按 createdAt 升序排在内置之后
+ */
+export function getMergedTabEntries(tab, customFruits) {
+  const baseEntries = getTabEntries(tab);
+  if (!tab || tab.id !== 'catch') return baseEntries;
+  if (!Array.isArray(customFruits) || customFruits.length === 0) return baseEntries;
+  const baseFruitSet = new Set(baseEntries.map(e => e.fruit));
+  const extras = customFruits
+    .filter(c => c && !c.deleted && c.fruit && !baseFruitSet.has(c.fruit))
+    .sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''))
+    .map(customFruitToEntry)
+    .filter(Boolean);
+  return [...baseEntries, ...extras];
 }

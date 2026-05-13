@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useStore } from '../store';
-import { PLANS, ATTR_SHINIES, SEASON_SHINIES, findPlansForSpirit, SPECIAL_FORMS } from '../data/plans';
+import { PLANS, ATTR_SHINIES, SEASON_SHINIES, findPlansForSpirit, SPECIAL_FORMS, resolveShinyKey } from '../data/plans';
 import SpiritAvatar from '../components/SpiritAvatar';
 import PlanIcon from '../components/PlanIcon';
 import { getWikiSpiritImg } from '../data/spirits-wiki';
 import { getWikiFruitImg } from '../data/fruits-wiki';
+import { LOCAL_SPIRIT_FILES, LOCAL_FRUIT_FILES } from '../data/local-assets';
 
 const base = import.meta.env.BASE_URL;
 
@@ -23,26 +24,39 @@ function getSpiritTag(name) {
   return SEASON_SET.has(name) ? 'adventure' : 'attr';
 }
 
+// 获取某只图鉴精灵的获取记录。
+// 走"图鉴点亮放宽"同款归一化策略：把每条记录的 resultSpirit 用 resolveShinyKey
+// 转成"该家族在图鉴里的代表名"再与当前精灵 name 比对。
+// 这样无论用户当时填的是"燃薪虫"还是"柴渣虫"，"柴渣虫"详情页都能聚合到所有同家族记录。
 function getSpiritRecords(name, state) {
+  const targetKey = resolveShinyKey(name);
   return (state.completedTasks || [])
-    .filter(t => t.resultSpirit === name && t.resultType !== 'abandoned')
+    .filter(t => {
+      if (!t || !t.resultSpirit) return false;
+      if (t.resultType === 'abandoned') return false;
+      return resolveShinyKey(t.resultSpirit) === targetKey;
+    })
     .map(t => ({
       taskId: t.id,
       planId: t.planId,
       shieldBreakCount: t.shieldBreakCount,
       ballsUsed: t.ballsUsed,
       completedAt: t.completedAt,
+      // familyAlias：仅当用户填的名字与图鉴代表名不一致时才有值
+      // 用于在 RecordRow 上额外标注"实际填写：xxx"，避免用户困惑
+      familyAlias: t.resultSpirit !== name ? t.resultSpirit : null,
     }));
 }
 
 // 支持 wiki 兜底的果实图卡
 function FruitImg({ name, size = 60 }) {
-  const localSrc = `${base}fruits/${encodeURIComponent(name)}.png?v=3`;
+  const hasLocal = LOCAL_FRUIT_FILES.has(name);
+  const localSrc = hasLocal ? `${base}fruits/${encodeURIComponent(name)}.png?v=3` : null;
   const rawWikiSrc = getWikiFruitImg(name);
   // v=3 用于破除浏览器对旧 wiki CDN URL 的缓存（果实图标 URL 有过变更）
   const wikiSrc = rawWikiSrc ? `${rawWikiSrc}?v=3` : null;
-  const [src, setSrc] = useState(localSrc);
-  const [triedWiki, setTriedWiki] = useState(false);
+  const [src, setSrc] = useState(localSrc || wikiSrc || '');
+  const [triedWiki, setTriedWiki] = useState(!hasLocal);
 
   const handleError = (e) => {
     if (!triedWiki && wikiSrc) { setTriedWiki(true); setSrc(wikiSrc); }
@@ -57,7 +71,7 @@ function FruitImg({ name, size = 60 }) {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
       }}>
-        <img src={src} alt={name}
+        <img src={src} alt={name} loading="lazy"
           style={{ width: size - 8, height: size - 8, objectFit: 'contain' }}
           onError={handleError} />
       </div>
@@ -73,10 +87,11 @@ function FruitImg({ name, size = 60 }) {
 // 支持 wiki 兜底的精灵图卡
 function SpiritImg({ name, size = 60 }) {
   const fileName = SPIRIT_IMG_FILE[name] || name;
-  const localSrc = `${base}spirits/${encodeURIComponent(fileName)}.png?v=2`;
+  const hasLocal = LOCAL_SPIRIT_FILES.has(fileName);
+  const localSrc = hasLocal ? `${base}spirits/${encodeURIComponent(fileName)}.png?v=2` : null;
   const wikiSrc = getWikiSpiritImg(name);
-  const [src, setSrc] = useState(localSrc);
-  const [triedWiki, setTriedWiki] = useState(false);
+  const [src, setSrc] = useState(localSrc || wikiSrc || '');
+  const [triedWiki, setTriedWiki] = useState(!hasLocal);
 
   const handleError = (e) => {
     if (!triedWiki && wikiSrc) { setTriedWiki(true); setSrc(wikiSrc); }
@@ -91,7 +106,7 @@ function SpiritImg({ name, size = 60 }) {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
       }}>
-        <img src={src} alt={name}
+        <img src={src} alt={name} loading="lazy"
           style={{ width: size - 8, height: size - 8, objectFit: 'contain' }}
           onError={handleError} />
       </div>
@@ -300,6 +315,12 @@ function RecordRow({ rec, index }) {
           ? <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)' }}>{rec.ballsUsed} 咕噜球</span>
           : <span style={{ fontSize: 11, fontStyle: 'italic', color: 'rgba(160,144,128,0.7)' }}>待输入消耗咕噜球数量</span>
         }
+        {/* 当用户填写的名字是同家族的进化形态而非图鉴代表名时，标注实际填写 */}
+        {rec.familyAlias && (
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+            实际填写：{rec.familyAlias}
+          </span>
+        )}
       </div>
       <button onClick={() => setEditing(true)} style={{
         flexShrink: 0, border: '1px solid rgba(103,93,83,0.25)', background: 'var(--card-inner)',
@@ -355,7 +376,7 @@ export default function Collection() {
       <div style={{ margin: '16px 16px 14px', padding: '12px 14px', background: 'var(--card)', border: '1.5px solid var(--card-border)', borderRadius: 'var(--radius-sm)', boxShadow: 'var(--shadow-card)' }}>
         {/* 活动标题 + 说明 */}
         <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--text)', fontFamily: 'var(--font-display)', marginBottom: 3 }}>
+          <div className="font-subtitle" style={{ fontSize: 16, fontWeight: 900, color: 'var(--text)', marginBottom: 3 }}>
             S1 赛季 · 异色&奇遇
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.7 }}>
@@ -367,9 +388,10 @@ export default function Collection() {
         {/* 总进度 */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 7 }}>
           <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text)' }}>收集进度</span>
-          <span style={{ fontSize: 13, fontWeight: 900, color: obtainedCount === totalCount ? 'var(--success)' : 'var(--cta)', fontFamily: 'var(--font-display)' }}>
-            {obtainedCount === totalCount ? '✓ 全收！' : `${obtainedCount} / ${totalCount}`}
-          </span>
+          {obtainedCount === totalCount
+            ? <span style={{ fontSize: 13, fontWeight: 900, color: 'var(--success)', fontFamily: 'var(--font-body)' }}>✓ 全收！</span>
+            : <span className="font-subtitle" style={{ fontSize: 13, fontWeight: 900, color: 'var(--cta)' }}>{obtainedCount} / {totalCount}</span>
+          }
         </div>
         <div style={{ height: 7, borderRadius: 99, background: 'rgba(103,93,83,0.1)', overflow: 'hidden', marginBottom: 10 }}>
           <div style={{
@@ -483,7 +505,7 @@ export default function Collection() {
                 </div>
 
                 {/* 精灵名 */}
-                <div style={{
+                <div className="font-spirit" style={{
                   fontSize: 10, fontWeight: 800,
                   color: isObtained ? 'var(--text)' : 'var(--text-muted)',
                   textAlign: 'center', lineHeight: 1.2,
@@ -534,7 +556,7 @@ export default function Collection() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, paddingRight: 36 }}>
                 <SpiritAvatar name={selected} obtained={state.spirits[selected]?.obtained} size={60} showName={false} />
                 <div>
-                  <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 5, fontFamily: 'var(--font-display)' }}>
+                  <div className="font-spirit" style={{ fontSize: 18, fontWeight: 900, marginBottom: 5 }}>
                     {selected}
                   </div>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>

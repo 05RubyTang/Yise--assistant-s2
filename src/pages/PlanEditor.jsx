@@ -175,7 +175,7 @@ export default function PlanEditor({ basePlanId, userPlanId, goBack }) {
     <div style={{ paddingBottom: 32 }}>
       {/* 顶部 */}
       <div className="page-header">
-        <button className="back-btn" onClick={goBack}><img src={`${import.meta.env.BASE_URL}back-icon.png`} alt="返回" /></button>
+        <button className="back-btn" onClick={goBack}><img src={`${import.meta.env.BASE_URL}back-icon.webp`} alt="返回" /></button>
         <span className="page-header-title">
           {isEditing ? '编辑方案' : '新建方案'}
         </span>

@@ -1,5 +1,5 @@
 import { useStore } from '../store';
-import { PLANS } from '../data/plans';
+import { PLANS, getPlanAttrId, classifyPool, computeFamilyPool, getPlanMainPool, resolvePlanIconImg } from '../data/plans';
 import ProgressBar from '../components/ProgressBar';
 import PlanIcon from '../components/PlanIcon';
 import SpiritAvatar from '../components/SpiritAvatar';
@@ -91,7 +91,7 @@ function RecentSpiritCard({ task }) {
 }
 
 export default function Home({ navigate }) {
-  const { state } = useStore();
+  const { state, poolCounts } = useStore();
   const tasks = state.activeTasks || [];
   const recentShinies = getRecentShinies(state);
   const hasRecentShinies = recentShinies.length > 0;
@@ -102,7 +102,7 @@ export default function Home({ navigate }) {
       <div style={{ position: 'relative', padding: '36px 16px 0', minHeight: 90 }}>
         {/* logo 靠左，右边留出 110px 给小洛克 */}
         <img
-          src={`${import.meta.env.BASE_URL}app-title.png`}
+          src={`${import.meta.env.BASE_URL}app-title.webp`}
           alt="小洛克的刷异色助手"
           style={{ height: 42, maxWidth: 'calc(100% - 110px)', objectFit: 'contain', objectPosition: 'left', display: 'block' }}
         />
@@ -115,7 +115,7 @@ export default function Home({ navigate }) {
         </div>
         {/* 小洛克：绝对定位右上角，完整显示在屏幕内 */}
         <img
-          src={`${import.meta.env.BASE_URL}xiaoluoke.png`}
+          src={`${import.meta.env.BASE_URL}xiaoluoke.webp`}
           alt="小洛克"
           style={{
             position: 'absolute',
@@ -175,7 +175,7 @@ export default function Home({ navigate }) {
               fontFamily: 'var(--font-display)',
             }}>
               <img
-                src={`${import.meta.env.BASE_URL}dimo-bg.png`}
+                src={`${import.meta.env.BASE_URL}dimo-bg.webp`}
                 alt="" aria-hidden="true"
                 style={{ width: 22, height: 22, objectFit: 'contain', filter: 'brightness(0)', opacity: 0.75, flexShrink: 0 }}
               />
@@ -199,7 +199,7 @@ export default function Home({ navigate }) {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
           <img
-            src={`${import.meta.env.BASE_URL}section-title-banner.png`}
+            src={`${import.meta.env.BASE_URL}section-title-banner.webp`}
             alt=""
             style={{
               position: 'absolute', inset: 0,
@@ -227,21 +227,39 @@ export default function Home({ navigate }) {
         const plan = {
           ...rawPlan,
           type:    rawPlan.type    || rawPlan.label || '自定义方案',
-          iconImg: rawPlan.iconImg || attrBase?.iconImg || null,
+          iconImg: resolvePlanIconImg(rawPlan, attrBase),
           icon:    rawPlan.icon    || attrBase?.icon    || '✨',
           fruitA:  rawPlan.fruitA  || '',
           fruitB:  rawPlan.fruitB  || '',
         };
-        const remaining = 80 - task.shieldBreakCount;
+
+        // ── 三池进度数据（从事件流派生） ─────────────────────────────────────
+        const attrId      = getPlanAttrId(plan);
+        const mainPool    = getPlanMainPool(plan); // 'family' | 'attr' | 'world'
+        const familyCount = computeFamilyPool(task, plan);
+        const attrCount   = attrId ? ((poolCounts?.attrPools || {})[attrId] || 0) : 0;
+        const worldCount  = poolCounts?.worldPool || 0;
+        // 本任务在系别/世界池的贡献（用于标注「继承 X + 本次 Y」）
+        const resolvePool = (b) => b.pool ?? (
+          b.result === 'polluted' && b.spiritName ? classifyPool(b.spiritName, plan) : null
+        );
+        const taskAttrCount  = attrId
+          ? (task.shieldBreaks || []).filter(b => resolvePool(b) === 'attr').length
+          : 0;
+        const taskWorldCount = (task.shieldBreaks || []).filter(b => resolvePool(b) === 'world').length;
+        const inheritAttrCount  = Math.max(0, attrCount - taskAttrCount);
+        const inheritWorldCount = Math.max(0, worldCount - taskWorldCount);
+        const familyRemain = Math.max(0, 80 - familyCount);
+        const attrRemain   = Math.max(0, 80 - attrCount);
+        const worldRemain  = Math.max(0, 80 - worldCount);
+
         return (
           <div key={task.planId} className="animate-in" style={{
             position: 'relative',
             margin: '0 16px 16px',
             borderRadius: 16,
             overflow: 'hidden',
-            backgroundImage: `url(${import.meta.env.BASE_URL}card-frame-compact.png)`,
-            backgroundSize: '100% 100%',
-            backgroundRepeat: 'no-repeat',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
             animationDelay: `${idx * 0.06}s`,
           }}>
             {/* 深色头部 */}
@@ -268,22 +286,108 @@ export default function Home({ navigate }) {
                 </div>
               </div>
             </div>
-            {/* 浅色体：透明背景展示纸纹 */}
-            <div style={{ padding: '12px 14px 22px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ fontSize: 12, color: 'var(--text-light)', fontWeight: 600 }}>触发污染保底进度</span>
-                <span style={{ fontSize: 14, fontWeight: 900, color: 'var(--cta)' }}>
-                  {task.shieldBreakCount}
-                  <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 12 }}>/80</span>
-                </span>
+
+            {/* 浅色体：三池进度 */}
+            <div style={{ background: '#FCF7EB', padding: '12px 14px 16px' }}>
+              {/* 标题行 */}
+              <div style={{ fontSize: 11, color: 'var(--text-light)', fontWeight: 700, marginBottom: 8, letterSpacing: 0.5 }}>
+                保底进度
               </div>
-              <ProgressBar current={task.shieldBreakCount} total={80} color="var(--cta)" />
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 5, textAlign: 'right' }}>
-                还差 <span style={{ fontWeight: 700, color: 'var(--text)' }}>{remaining}</span> 次触发保底
-              </div>
+
+              {/* 家族池（仅单刷方案时为主池显示） */}
+              {mainPool === 'family' && (
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#2B2A2E', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#C8830A', display: 'inline-block' }}/>
+                      家族池
+                      <span style={{ fontSize: 10, fontWeight: 500, color: '#9E8E80' }}>（本任务）</span>
+                    </span>
+                    <span style={{ fontSize: 12, fontWeight: 900, color: '#C8830A' }}>
+                      {familyCount}<span style={{ color: '#9E8E80', fontWeight: 400, fontSize: 11 }}>/80</span>
+                      {familyRemain > 0 && <span style={{ fontSize: 10, color: '#9E8E80', fontWeight: 500 }}> 还差{familyRemain}</span>}
+                    </span>
+                  </div>
+                  <ProgressBar current={familyCount} total={80} color="#C8830A" />
+                </div>
+              )}
+
+              {/* 系别池（同属混刷为主池；单刷时作为次要池小字显示） */}
+              {(mainPool === 'attr' || mainPool === 'family') && attrId && (
+                <div style={{ marginBottom: mainPool === 'attr' ? 8 : 4 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: mainPool === 'attr' ? 3 : 2 }}>
+                    <span style={{ fontSize: mainPool === 'attr' ? 11 : 10, fontWeight: 700, color: mainPool === 'attr' ? '#2B2A2E' : '#9E8E80', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ width: mainPool === 'attr' ? 8 : 6, height: mainPool === 'attr' ? 8 : 6, borderRadius: '50%', background: '#E8A020', display: 'inline-block' }}/>
+                      系别池
+                      {mainPool === 'attr'
+                        ? <span style={{ fontSize: 10, fontWeight: 500, color: '#9E8E80' }}>（全局·本属性）</span>
+                        : <span style={{ fontSize: 10, fontWeight: 500, color: '#9E8E80' }}>（次要）</span>
+                      }
+                    </span>
+                    <span style={{ fontSize: mainPool === 'attr' ? 12 : 11, fontWeight: 900, color: '#E8A020' }}>
+                      {inheritAttrCount > 0
+                        ? <span style={{ fontSize: 10, color: '#9E8E80', fontWeight: 400 }}>继承{inheritAttrCount}+本次{taskAttrCount}=</span>
+                        : null
+                      }
+                      {attrCount}<span style={{ color: '#9E8E80', fontWeight: 400, fontSize: 10 }}>/80</span>
+                      {attrRemain > 0 && <span style={{ fontSize: 10, color: '#9E8E80', fontWeight: 500 }}> 差{attrRemain}</span>}
+                    </span>
+                  </div>
+                  {mainPool === 'attr' && <ProgressBar current={attrCount} total={80} color="#E8A020" />}
+                </div>
+              )}
+
+              {/* 世界池（跨属混刷为主池；其他情况作为次要池小字显示） */}
+              {(mainPool === 'world') && (
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#2B2A2E', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#7E57C2', display: 'inline-block' }}/>
+                      世界池
+                      <span style={{ fontSize: 10, fontWeight: 500, color: '#9E8E80' }}>（全局·共享）</span>
+                    </span>
+                    <span style={{ fontSize: 12, fontWeight: 900, color: '#7E57C2' }}>
+                      {worldCount}<span style={{ color: '#9E8E80', fontWeight: 400, fontSize: 11 }}>/80</span>
+                      {worldRemain > 0 && <span style={{ fontSize: 10, color: '#9E8E80', fontWeight: 500 }}> 还差{worldRemain}</span>}
+                    </span>
+                  </div>
+                  <ProgressBar current={worldCount} total={80} color="#7E57C2" />
+                </div>
+              )}
+              {/* 世界池次要显示（单刷/同属混刷时） */}
+              {mainPool !== 'world' && (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: '#9E8E80', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#7E57C2', display: 'inline-block' }}/>
+                      世界池<span style={{ fontWeight: 400 }}>（次要）</span>
+                    </span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#7E57C2' }}>
+                      {inheritWorldCount > 0
+                        ? <span style={{ fontSize: 10, color: '#9E8E80', fontWeight: 400 }}>继承{inheritWorldCount}+本次{taskWorldCount}=</span>
+                        : null
+                      }
+                      {worldCount}<span style={{ color: '#9E8E80', fontWeight: 400, fontSize: 10 }}>/80</span>
+                      {worldRemain > 0 && <span style={{ fontSize: 10, color: '#9E8E80', fontWeight: 400 }}> 差{worldRemain}</span>}
+                    </span>
+                  </div>
+                </div>
+              )}
+              {/* 跨属混刷：世界池为主池，也展示系别池和家族池次要信息 */}
+              {mainPool === 'world' && (
+                <div style={{ marginBottom: 12, display: 'flex', gap: 12 }}>
+                  {attrId && (
+                    <span style={{ fontSize: 10, color: '#9E8E80', display: 'flex', alignItems: 'center', gap: 3 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#E8A020', display: 'inline-block', flexShrink: 0 }}/>
+                      系别池 {inheritAttrCount > 0 ? `${inheritAttrCount}+${taskAttrCount}=` : ''}{attrCount}/80
+                    </span>
+                  )}
+                </div>
+              )}
+
               <button
                 className="btn btn-primary"
-                style={{ margin: '10px 0 0', width: '100%', padding: '13px', fontSize: 14 }}
+                style={{ width: '100%', margin: 0, padding: '13px', fontSize: 14 }}
                 onClick={() => navigate('recorder', { planId: task.planId })}
               >
                 继续刷取 →
@@ -310,7 +414,7 @@ export default function Home({ navigate }) {
         onTouchEnd={e => e.currentTarget.style.transform = 'scale(1)'}
       >
         <img
-          src={`${import.meta.env.BASE_URL}btn-start.png`}
+          src={`${import.meta.env.BASE_URL}btn-start.webp`}
           alt="开始新的刷取"
           style={{ width: 200, height: 'auto', display: 'inline-block' }}
         />

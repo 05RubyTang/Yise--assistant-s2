@@ -1,5 +1,5 @@
-import { createContext, useContext, useReducer, useEffect, useRef, useState } from 'react';
-import { ALL_SHINIES } from './data/plans';
+import { createContext, useContext, useReducer, useEffect, useMemo, useRef, useState } from 'react';
+import { ALL_SHINIES, classifyPool, computePoolCounts, PLANS, resolveShinyKey, FRUIT_ATTR, getAttrByAnyName } from './data/plans';
 import { supabase } from './supabase';
 
 const STORAGE_KEY = 'roco-shiny-helper';
@@ -39,6 +39,13 @@ function buildDefaultState() {
     completedTasks: [],
     userPlanConfig: [],   // 用户自定义方案列表
     ownedFruits: [],      // 已拥有的果实名称列表（果实攻略页标记）
+    customFruits: [],     // 用户自建果实（果实攻略页 / 自定义方案输入新果实时同步生成）
+                          // 每条：{ fruit, spirit, attrs:[中文系名], attrId, unlock, tip, source, fromPlanId, createdAt, updatedAt, deleted?, deletedAt? }
+    // ── 三池保底计数器（全局） ───────────────────────────────────────────────
+    // attrPools: { [attrId]: number }  各属性的系别池累计计数
+    // worldPool: number                世界池全局累计计数
+    attrPools: {},
+    worldPool: 0,
   };
 }
 
@@ -103,6 +110,7 @@ function reducer(state, action) {
         ballStartByType: action.ballStartByType ?? null, // byType 模式 {adv,sea,att}
         ballRestocks: [],   // simple: [{amount,time}]  byType: [{adv,sea,att,time}]
         pauseSegments: [],  // 暂停计球历史段：simple [{consumed,time}] / byType [{adv,sea,att,time}]
+        familyPool: 0,      // 家族池保底计数（绑定本任务，出货或完成后归零）
       };
       return {
         ...state,
@@ -112,15 +120,34 @@ function reducer(state, action) {
     case 'RECORD_BREAK': {
       // jelly（果冻/星辰虫）：记录色块供展示，但不增加保底计数
       const isJelly = action.result === 'jelly';
+
+      // ── 三池归属判定 ─────────────────────────────────────────────────────────
+      // 破盾后不论出现原色/污染/异色精灵，都算触发一次噩梦，均计入对应池保底进度。
+      // 只有「触发失败（逃跑/战败）」和 shiny（已出货）不计入池保底。
+      // jelly（果冻/星辰虫）固定归世界池，不占保底序号（shieldBreakCount 不自增）。
+      let breakPool = null;
+      if ((action.result === 'polluted' || action.result === 'original') && action.spiritName) {
+        // 同时查内置方案和用户自定义方案（自定义方案 id 形如 user_plan_xxx）
+        const plan = PLANS.find(p => p.id === action.planId)
+          || (state.userPlanConfig || []).find(p => p.id === action.planId);
+        breakPool = classifyPool(action.spiritName, plan);
+      } else if (action.result === 'jelly') {
+        breakPool = 'world';
+      }
+
       const newBreak = {
         index: 0,
         result: action.result,
         // spiritName 可选：'original'/'polluted' 记录具体精灵，'shiny'/'jelly' 可为空
         ...(action.spiritName ? { spiritName: action.spiritName } : {}),
+        // pool 字段：polluted 时写入归属池，其他为 null（不存储 null key）
+        ...(breakPool ? { pool: breakPool } : {}),
         time: new Date().toISOString(),
       };
+
       return {
         ...state,
+        // 三池计数不再增量维护，改由 computePoolCounts 从事件流派生
         activeTasks: updateTask(state.activeTasks, action.planId, task => {
           // jelly 不占保底序号（index 使用当前 count，不自增）
           newBreak.index = isJelly ? task.shieldBreakCount : task.shieldBreakCount + 1;
@@ -142,19 +169,20 @@ function reducer(state, action) {
       };
     }
     case 'UNDO_BREAK': {
+      // 三池计数由事件流派生，撤销只需删除最后一条 shieldBreaks 记录即可
+      const undoTask = state.activeTasks.find(t => t.planId === action.planId);
+      if (!undoTask || undoTask.shieldBreaks.length === 0) return state;
+      const lastBreak = undoTask.shieldBreaks[undoTask.shieldBreaks.length - 1];
+      const isUndoJelly = lastBreak?.result === 'jelly';
+
       return {
         ...state,
-        activeTasks: updateTask(state.activeTasks, action.planId, task => {
-          if (task.shieldBreaks.length === 0) return task;
-          const lastBreak = task.shieldBreaks[task.shieldBreaks.length - 1];
-          const isJelly = lastBreak?.result === 'jelly';
-          return {
-            ...task,
-            shieldBreaks: task.shieldBreaks.slice(0, -1),
-            // jelly 不占保底计数，撤销时也不减
-            shieldBreakCount: isJelly ? task.shieldBreakCount : task.shieldBreakCount - 1,
-          };
-        }),
+        activeTasks: updateTask(state.activeTasks, action.planId, task => ({
+          ...task,
+          shieldBreaks: task.shieldBreaks.slice(0, -1),
+          // jelly 不占保底计数，撤销时也不减
+          shieldBreakCount: isUndoJelly ? task.shieldBreakCount : task.shieldBreakCount - 1,
+        })),
       };
     }
     case 'SET_TASK_BALLS': {
@@ -305,8 +333,11 @@ function reducer(state, action) {
         completedAt: new Date().toISOString(),
       };
       const newSpirits = { ...state.spirits };
-      if (action.spiritName && newSpirits[action.spiritName]) {
-        newSpirits[action.spiritName] = {
+      // 图鉴点亮放宽：用户填的名字可能是同家族的进化前/后形态，
+      // 用 resolveShinyKey 归一化到图鉴里的代表异色名（找不到则保留原名）
+      const shinyKeyForComplete = resolveShinyKey(action.spiritName);
+      if (shinyKeyForComplete && newSpirits[shinyKeyForComplete]) {
+        newSpirits[shinyKeyForComplete] = {
           obtained: true,
           obtainedFrom: task.planId,
           obtainedAt: new Date().toISOString(),
@@ -378,22 +409,32 @@ function reducer(state, action) {
         completedAt: new Date().toISOString(),
       };
       const newSpirits = { ...state.spirits };
-      if (action.spiritName && newSpirits[action.spiritName]) {
-        newSpirits[action.spiritName] = {
+      // 图鉴点亮放宽：归一化到家族代表异色名
+      const shinyKeyForCAC = resolveShinyKey(action.spiritName);
+      if (shinyKeyForCAC && newSpirits[shinyKeyForCAC]) {
+        newSpirits[shinyKeyForCAC] = {
           obtained: true,
           obtainedFrom: task.planId,
           obtainedAt: new Date().toISOString(),
         };
       }
       const resetBreaks = !!action.resetBreaks;
+      // 选择性清零：只移除出货池（action.resultType）的 breaks，另外两池进度保留。
+      // resetBreaks=true（用户手动选择「三池全清」）时清空全部。
+      const poolToClear = action.resultType; // 'family' | 'attr' | 'world'
+      const nextShieldBreaks = resetBreaks
+        ? []
+        : task.shieldBreaks.filter(b => !b.pool || b.pool !== poolToClear);
+      // shieldBreakCount 从剩余 breaks 重新计算（jelly 不占保底序号）
+      const nextShieldBreakCount = nextShieldBreaks.filter(b => b.result !== 'jelly').length;
       return {
         ...state,
         spirits: newSpirits,
         activeTasks: updateTask(state.activeTasks, action.planId, t => ({
           ...t,
           id: 'task_' + Date.now(),
-          shieldBreaks: resetBreaks ? [] : t.shieldBreaks,
-          shieldBreakCount: resetBreaks ? 0 : t.shieldBreakCount,
+          shieldBreaks: nextShieldBreaks,
+          shieldBreakCount: nextShieldBreakCount,
           failedBreaks: 0,
           startTime: new Date().toISOString(),
           // 继续刷：上轮剩余作为新的开始
@@ -401,6 +442,7 @@ function reducer(state, action) {
           ballStartByType: task.ballMode === 'byType' ? nextBallStartByType : null,
           ballRestocks: [],
           pauseSegments: [],
+          // 各池进度：出货池已通过过滤 nextShieldBreaks 归零，另外两池 breaks 保留自然延续
         })),
         completedTasks: [completed, ...state.completedTasks],
       };
@@ -458,14 +500,19 @@ function reducer(state, action) {
       let newSpirits = state.spirits;
       const spiritName = taskToDelete.resultSpirit;
       if (spiritName && taskToDelete.resultType !== 'abandoned') {
+        // 图鉴点亮放宽：判断"是否还存在同家族记录"，避免误关图鉴
+        // 把当前删掉的记录和剩余记录都归一化到家族代表名再比较
+        const shinyKeyToDelete = resolveShinyKey(spiritName);
         const stillHasRecord = newCompleted.some(
-          t => t.resultSpirit === spiritName && t.resultType !== 'abandoned'
+          t => t.resultType !== 'abandoned'
+            && t.resultSpirit
+            && resolveShinyKey(t.resultSpirit) === shinyKeyToDelete
         );
-        if (!stillHasRecord && state.spirits[spiritName]?.obtained) {
+        if (!stillHasRecord && state.spirits[shinyKeyToDelete]?.obtained) {
           newSpirits = {
             ...state.spirits,
-            [spiritName]: {
-              ...state.spirits[spiritName],
+            [shinyKeyToDelete]: {
+              ...state.spirits[shinyKeyToDelete],
               obtained: false,
               obtainedAt: null,
               obtainedFrom: null,
@@ -555,6 +602,72 @@ function reducer(state, action) {
       // action.fruits: string[]（传空数组即为全清）
       return { ...state, ownedFruits: action.fruits };
     }
+    // ── 自建果实：upsert 语义 ──────────────────────────────────────────────────
+    // action: { fruit, spirit, attrs:[中文系名], attrId, unlock?, tip?, source?, fromPlanId? }
+    // 若 fruit 已是内置果实（FRUIT_ATTR 命中）→ 直接跳过保护内置数据
+    // 若 fruit 已存在于 customFruits → 同 fruit 升级（updatedAt 刷新；deleted 复活）
+    // 否则新增条目
+    case 'ADD_CUSTOM_FRUIT': {
+      if (!action.fruit) return state;
+      // 保护内置：内置果实禁止被自建数据覆盖
+      if (Object.prototype.hasOwnProperty.call(FRUIT_ATTR, action.fruit)) return state;
+      const list = state.customFruits || [];
+      const now = new Date().toISOString();
+      const exist = list.find(c => c.fruit === action.fruit);
+      const patch = {
+        fruit: action.fruit,
+        spirit: action.spirit ?? exist?.spirit ?? '',
+        attrs: Array.isArray(action.attrs) ? action.attrs : (exist?.attrs ?? []),
+        attrId: action.attrId ?? exist?.attrId ?? null,
+        unlock: action.unlock ?? exist?.unlock ?? '自定义',
+        tip: action.tip ?? exist?.tip ?? '',
+        source: action.source ?? exist?.source ?? 'manual',  // 'manual' 用户手建 / 'plan' 方案同步
+        fromPlanId: action.fromPlanId ?? exist?.fromPlanId ?? null,
+      };
+      if (exist) {
+        return {
+          ...state,
+          customFruits: list.map(c =>
+            c.fruit === action.fruit
+              ? { ...c, ...patch, deleted: false, deletedAt: null, updatedAt: now }
+              : c
+          ),
+        };
+      }
+      return {
+        ...state,
+        customFruits: [...list, { ...patch, createdAt: now, updatedAt: now }],
+      };
+    }
+    case 'UPDATE_CUSTOM_FRUIT': {
+      // action: { fruit, patch: {...} } —— 按 fruit name 定位修改
+      if (!action.fruit) return state;
+      const list = state.customFruits || [];
+      if (!list.some(c => c.fruit === action.fruit)) return state;
+      const now = new Date().toISOString();
+      return {
+        ...state,
+        customFruits: list.map(c =>
+          c.fruit === action.fruit
+            ? { ...c, ...(action.patch || {}), updatedAt: now }
+            : c
+        ),
+      };
+    }
+    case 'DELETE_CUSTOM_FRUIT': {
+      // 墓碑式删除：保留对象但置 deleted=true，避免 mergeStates 复活
+      if (!action.fruit) return state;
+      const list = state.customFruits || [];
+      const now = new Date().toISOString();
+      return {
+        ...state,
+        customFruits: list.map(c =>
+          c.fruit === action.fruit
+            ? { ...c, deleted: true, deletedAt: now, updatedAt: now }
+            : c
+        ),
+      };
+    }
     case 'ADD_MANUAL_SHINY': {
       // action.spiritName: 精灵名（必填）
       // action.planId: 方案ID（选填）
@@ -575,9 +688,11 @@ function reducer(state, action) {
         completedAt: action.completedAt || new Date().toISOString(),
       };
       const newSpirits = { ...state.spirits };
-      if (action.spiritName && newSpirits[action.spiritName]) {
-        newSpirits[action.spiritName] = {
-          ...newSpirits[action.spiritName],
+      // 图鉴点亮放宽：归一化到家族代表异色名
+      const shinyKeyForManual = resolveShinyKey(action.spiritName);
+      if (shinyKeyForManual && newSpirits[shinyKeyForManual]) {
+        newSpirits[shinyKeyForManual] = {
+          ...newSpirits[shinyKeyForManual],
           obtained: true,
           obtainedFrom: 'manual',
           obtainedAt: newRecord.completedAt,
@@ -592,6 +707,79 @@ function reducer(state, action) {
     // 内部 action：用云端数据覆盖本地（初始化时使用）
     case '_HYDRATE_FROM_CLOUD': {
       return action.data;
+    }
+    // 启动 / 云端拉取后调用一次：根据 completedTasks 反推应点亮的图鉴格子
+    // 用于把"图鉴点亮放宽"策略追溯应用到历史已记录的异色，包括：
+    //   - 用户在本次需求上线之前填的、已存在于本地/云端的 completedTasks
+    //   - 跨设备合并过来的历史记录
+    // 完全幂等：已点亮的格子不会被重复写，未涉及的格子保持原状。
+    // 注意：只追加点亮（obtained=false → true），不会反向关闭，避免误伤。
+    case 'RECONCILE_SHINIES': {
+      const newSpirits = { ...state.spirits };
+      let changed = 0;
+      (state.completedTasks || []).forEach(t => {
+        if (!t || !t.resultSpirit) return;
+        if (t.resultType === 'abandoned') return;
+        const key = resolveShinyKey(t.resultSpirit);
+        if (!key) return;
+        const cur = newSpirits[key];
+        if (!cur) return;            // 不在图鉴里的精灵跳过
+        if (cur.obtained) return;    // 已经点亮过，无需重复写
+        newSpirits[key] = {
+          ...cur,
+          obtained: true,
+          obtainedFrom: cur.obtainedFrom || t.planId || 'reconcile',
+          obtainedAt: cur.obtainedAt || t.completedAt || new Date().toISOString(),
+        };
+        changed++;
+      });
+      if (changed === 0) return state;
+      return { ...state, spirits: newSpirits };
+    }
+    // 存量补全：把自定义方案里引用过、但尚未写入 customFruits 的果实自动补进去。
+    // 触发时机：userPlanConfig 变化时（启动、hydrate 合并、新增/删除方案均会触发）。
+    // 完全幂等：已在 customFruits 中的果实（含 deleted 墓碑）会被跳过，不重复写入。
+    // 内置果实（FRUIT_ATTR 命中）也跳过——保护内置数据不被自建条目覆盖。
+    case 'RECONCILE_CUSTOM_FRUITS': {
+      const existingFruitNames = new Set(
+        (state.customFruits || []).map(c => c.fruit)
+      );
+      const now = new Date().toISOString();
+      const toAdd = [];
+
+      (state.userPlanConfig || [])
+        .filter(p => !p.deleted)
+        .forEach(plan => {
+          [plan.fruitA, plan.fruitB].forEach(fruitName => {
+            if (!fruitName) return;
+            // 内置果实不建自建条目
+            if (Object.prototype.hasOwnProperty.call(FRUIT_ATTR, fruitName)) return;
+            // 已有记录（含已删除的墓碑）→ 不再重复写
+            if (existingFruitNames.has(fruitName)) return;
+            // 去重：同一果实多个方案引用时只添加一次
+            if (toAdd.some(c => c.fruit === fruitName)) return;
+            // 反查属性 ID
+            const attrId = getAttrByAnyName(fruitName) || null;
+            toAdd.push({
+              fruit: fruitName,
+              spirit: fruitName.endsWith('果实') ? fruitName.slice(0, -2) : fruitName,
+              attrs: [],       // customFruitToEntry 会按 attrId 自动补全中文属性名
+              attrId,
+              unlock: '自定义',
+              tip: '',
+              source: 'plan',
+              fromPlanId: plan.id,
+              createdAt: now,
+              updatedAt: now,
+            });
+          });
+        });
+
+      if (toAdd.length === 0) return state;
+      return {
+        ...state,
+        customFruits: [...(state.customFruits || []), ...toAdd],
+      };
     }
     default:
       return state;
@@ -789,7 +977,34 @@ function mergeStates(local, cloud) {
   const cloudOwned = new Set(cloud.ownedFruits || []);
   const ownedFruits = [...new Set([...localOwned, ...cloudOwned])];
 
-  return { spirits, fruitProgress, activeTasks, abandonedPlanIds, completedTasks, userPlanConfig, ownedFruits };
+  // customFruits：按 fruit name 去重
+  // 规则：任一侧 deleted=true → 保留 deleted（墓碑不可逆）
+  //       两侧都未删除 → 取 updatedAt 较新的那个
+  const fruitMap = new Map();
+  [...(cloud.customFruits || []), ...(local.customFruits || [])].forEach(c => {
+    if (!c || !c.fruit) return;
+    const existing = fruitMap.get(c.fruit);
+    if (!existing) {
+      fruitMap.set(c.fruit, c);
+      return;
+    }
+    if (c.deleted || existing.deleted) {
+      const winner = c.deleted ? c : existing;
+      fruitMap.set(c.fruit, winner);
+      return;
+    }
+    if (c.updatedAt && (!existing.updatedAt || c.updatedAt > existing.updatedAt)) {
+      fruitMap.set(c.fruit, c);
+    }
+  });
+  const customFruits = [...fruitMap.values()];
+
+  // attrPools / worldPool：字段废弃（改由事件流派生），合并时不再维护。
+  // 保留在 return 中是为了让旧数据反序列化后字段仍存在，不触发 undefined 报错。
+  const attrPools = {};
+  const worldPool = 0;
+
+  return { spirits, fruitProgress, activeTasks, abandonedPlanIds, completedTasks, userPlanConfig, ownedFruits, customFruits, attrPools, worldPool };
 }
 
 // ─── 工具：从云端拉取并水合数据（始终合并，不丢弃任何一方数据）─────────────
@@ -992,6 +1207,9 @@ export function StoreProvider({ children }) {
   // 绑定/登录成功后弹出的全局 Toast
   // { type: 'bind' | 'login' | 'switch' | 'offline' | 'syncError', email?: string } | null
   const [authToast, setAuthToast] = useState(null);
+  // 最近一次云端同步结果，供 Profile 页展示动态状态
+  // { status: 'pending' | 'success' | 'fail', time: Date } | null
+  const [lastSyncResult, setLastSyncResult] = useState(null);
   // 持久化失败重试：记录失败次数和定时器 ID
   const syncRetryCountRef = useRef(0);
   const syncRetryTimerRef = useRef(null);
@@ -1221,6 +1439,28 @@ export function StoreProvider({ children }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── 图鉴点亮回填：根据 completedTasks 反推应点亮的图鉴格子 ──────────────────
+  // 用途：把"图鉴点亮放宽（同家族即点亮）"策略追溯应用到历史已记录的异色，
+  // 包括用户在本次需求上线之前填的、本地或云端已存在的 completedTasks。
+  // 触发时机：completedTasks 引用变化（启动加载本地、云端 hydrate、合并孤儿行、
+  // 新增记录、删除记录都会换新数组），整个过程完全幂等：
+  //   - reducer 内部判断到无变化会直接 return state，不会触发持久化死循环
+  //   - 只追加点亮（false → true），不会反向关闭，避免覆盖用户在图鉴页手动取消的状态
+  useEffect(() => {
+    if (!state.completedTasks || state.completedTasks.length === 0) return;
+    dispatch({ type: 'RECONCILE_SHINIES' });
+  }, [state.completedTasks]);
+
+  // ── 存量自定义方案果实补全：userPlanConfig 变化时自动把孤儿果实写入 customFruits ──
+  // 场景：用户在「果实攻略自建果实」功能上线前就创建了自定义方案，方案里引用的
+  // 非内置果实（fruitA / fruitB）未被写入 customFruits，攻略页无法展示它们。
+  // 触发时机：userPlanConfig 引用变化（启动加载本地、云端 hydrate、新增/删除方案）。
+  // 幂等保证：reducer 内部检查 customFruits 已有记录时直接跳过，不会重复写入。
+  useEffect(() => {
+    if (!state.userPlanConfig || state.userPlanConfig.length === 0) return;
+    dispatch({ type: 'RECONCILE_CUSTOM_FRUITS' });
+  }, [state.userPlanConfig]);
+
   // ── 持久化：state 变更时同步写 localStorage + 云端 ────────────────────────
   useEffect(() => {
     // 写 localStorage（离线缓存，始终执行，保留完整 shieldBreaks 供本地读取）
@@ -1251,7 +1491,9 @@ export function StoreProvider({ children }) {
     };
 
     // 实际执行上传，失败时按指数退避调度重试（最多 3 次：30s / 60s / 120s）
-    function doUpsert() {
+    // isFirstCall=true：首次调用（非重试），先置 pending 让 Profile 感知同步进行中
+    function doUpsert(isFirstCall = false) {
+      if (isFirstCall) setLastSyncResult({ status: 'pending', time: new Date() });
       supabase
         .from('user_data')
         .upsert({
@@ -1261,15 +1503,17 @@ export function StoreProvider({ children }) {
         }, { onConflict: 'user_id' })
         .then(({ error }) => {
           if (!error) {
-            // 成功：清除重试状态
+            // 成功：清除重试状态，更新最近同步结果
             syncRetryCountRef.current = 0;
+            setLastSyncResult({ status: 'success', time: new Date() });
             return;
           }
           console.warn('[Supabase] 同步失败:', error.message);
           const attempt = syncRetryCountRef.current;
           if (attempt >= 3) {
-            // 已重试 3 次仍失败：给用户轻提示
+            // 已重试 3 次仍失败：给用户轻提示，更新最近同步结果
             console.warn('[Supabase] 重试耗尽，数据暂存本地');
+            setLastSyncResult({ status: 'fail', time: new Date() });
             setAuthToast({ type: 'syncError' });
             return;
           }
@@ -1284,7 +1528,7 @@ export function StoreProvider({ children }) {
     // 把 doUpsert 暴露给 visibilitychange 监听器，以便页面切后台时能主动触发
     doSyncNowRef.current = doUpsert;
 
-    doUpsert();
+    doUpsert(true); // 首次调用，置 pending
 
     // 组件卸载时清除未执行的重试定时器
     return () => {
@@ -1442,8 +1686,47 @@ export function StoreProvider({ children }) {
     attemptReconnectRef.current?.();
   };
 
+  // ── 手动触发一次 Supabase 同步（Profile 页「同步失败，点击重试」按钮调用）──
+  // 无论在线/离线，都先置 pending 给用户即时反馈，再触发实际的云端操作：
+  //   在线 → 直接调 doUpsert 写 Supabase
+  //   离线 → 调 retryOfflineNow 重新尝试连接 Supabase
+  const retrySyncNow = () => {
+    setLastSyncResult({ status: 'pending', time: new Date() });
+    if (syncStatus === 'offline') {
+      retryOfflineNow();
+    } else {
+      doSyncNowRef.current?.();
+    }
+  };
+
+  // ── Profile 主动探查 Supabase 同步状态（进入「我的」主页时调用）────────────
+  // 无论在线/离线，都先置 pending，再触发一次实际的 Supabase 操作，
+  // 让用户看到「同步中…→ 已同步 ✓ / 同步失败」的完整反馈。
+  //   在线 → doSyncNowRef 触发 upsert
+  //   离线 → retryOfflineNow 尝试重连 Supabase（成功后自动 upsert）
+  const pingSync = () => {
+    setLastSyncResult({ status: 'pending', time: new Date() });
+    if (syncStatus === 'offline') {
+      retryOfflineNow();
+    } else if (doSyncNowRef.current) {
+      doSyncNowRef.current();
+    }
+  };
+
+  // ── 三池保底计数（从事件流实时派生，随 activeTasks / completedTasks 自动更新）──
+  const allPlans = useMemo(() => [
+    ...PLANS,
+    ...(state.userPlanConfig || []).filter(p => !p.deleted),
+  ], [state.userPlanConfig]);
+
+  // 统计 activeTasks 和 completedTasks 中未清零的池：属性池和世界池跨任务全局累积
+  const poolCounts = useMemo(() =>
+    computePoolCounts(state.activeTasks, state.completedTasks, allPlans),
+    [state.activeTasks, state.completedTasks, allPlans]
+  );
+
   return (
-    <StoreContext.Provider value={{ state, dispatch, syncStatus, userId, authUser, authToast, clearAuthToast: () => setAuthToast(null), forceSyncNow, setAuthMode, retryOfflineNow }}>
+    <StoreContext.Provider value={{ state, dispatch, syncStatus, userId, authUser, authToast, clearAuthToast: () => setAuthToast(null), forceSyncNow, setAuthMode, retryOfflineNow, lastSyncResult, retrySyncNow, pingSync, poolCounts }}>
       {children}
     </StoreContext.Provider>
   );

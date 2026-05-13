@@ -157,7 +157,13 @@ export const FRUITS_WIKI_IMG = {
   // 独角兽果实 = 小独角兽果实（同一道具图标）
   "独角兽果实":   "https://patchwiki.biligame.com/images/rocom/f/fb/dd4np19ke066xpmv89ygh8plkpr2i2f.png",
   "小独角兽果实": "https://patchwiki.biligame.com/images/rocom/f/fb/dd4np19ke066xpmv89ygh8plkpr2i2f.png",
+  // 疾光千兽 / 绒仙子 wiki 无独立果实图（属于战令/进化形态）→ 用通用果实道具图标兜底
+  "疾光千兽果实": "https://patchwiki.biligame.com/images/rocom/f/fb/dd4np19ke066xpmv89ygh8plkpr2i2f.png",
+  "绒仙子果实":   "https://patchwiki.biligame.com/images/rocom/4/4d/ki369linoroontjldq0l64s8dfehl43.png", // 与绒绒果实相同
   // 注：哭哭菇果实/小夜果实/绒绒果实 已在上方有正确条目，此处删除重复键
+  // 同家族共用果实图标（疾光千兽=犀角鸟同家族；绒仙子=绒绒同家族）
+  "疾光千兽果实": "https://patchwiki.biligame.com/images/rocom/b/ba/0odp3a4u6lcr4iq692dewhef6oilatp.png", // 与犀角鸟果实相同
+  "绒仙子果实":   "https://patchwiki.biligame.com/images/rocom/4/4d/ki369linoroontjldq0l64s8dfehl43.png", // 与绒绒果实相同
 };
 
 /**

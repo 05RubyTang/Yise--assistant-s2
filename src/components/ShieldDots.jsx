@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import { getWikiSpiritImg } from '../data/spirits-wiki';
+import { LOCAL_SPIRIT_FILES } from '../data/local-assets';
 
 const base = import.meta.env.BASE_URL;
 
-// 色块内精灵图（本地优先，兜底 wiki CDN）
+// 色块内精灵图（本地有文件时优先本地，否则直接用 wiki CDN）
 function DotSpiritImg({ name }) {
-  const localSrc = `${base}spirits/${encodeURIComponent(name)}.png`;
+  const hasLocal = LOCAL_SPIRIT_FILES.has(name);
+  const localSrc = hasLocal ? `${base}spirits/${encodeURIComponent(name)}.png` : null;
   const wikiSrc = getWikiSpiritImg(name);
-  const [src, setSrc] = useState(localSrc);
-  const [triedWiki, setTriedWiki] = useState(false);
+  const [src, setSrc] = useState(localSrc || wikiSrc || '');
+  const [triedWiki, setTriedWiki] = useState(!hasLocal);
 
   const handleError = (e) => {
     if (!triedWiki && wikiSrc) {
@@ -24,6 +26,7 @@ function DotSpiritImg({ name }) {
       src={src}
       alt={name}
       title={name}
+      loading="lazy"
       onError={handleError}
     />
   );

@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useStore } from '../store';
-import { PLANS, SPECIAL_FORMS } from '../data/plans';
+import { PLANS, SPECIAL_FORMS, resolvePlanIconImg } from '../data/plans';
 import SpiritAvatar from '../components/SpiritAvatar';
 import PlanIcon from '../components/PlanIcon';
 import FruitTag, { FruitLine } from '../components/FruitTag';
+import { getWikiSpiritImg } from '../data/spirits-wiki';
+import { LOCAL_SPIRIT_FILES } from '../data/local-assets';
 
 const base = import.meta.env.BASE_URL;
 
@@ -70,8 +72,8 @@ export default function Checklist({ planId, basePlanId, navigate, goBack }) {
     shinies: Array.isArray(rawPlan.shinies) ? rawPlan.shinies : [],
     unlockA: rawPlan.unlockA || fruitUnlockMap.fruitA || '',
     unlockB: rawPlan.unlockB || fruitUnlockMap.fruitB || '',
-    // 自定义方案无 iconImg/icon 时从基础方案继承
-    iconImg: rawPlan.iconImg || attrBase?.iconImg || null,
+    // 自定义方案无 iconImg/icon 时从基础方案继承（异属混刷会用混刷专属图标）
+    iconImg: resolvePlanIconImg(rawPlan, attrBase),
     icon:    rawPlan.icon    || attrBase?.icon    || '✨',
   } : null;
 
@@ -141,8 +143,12 @@ export default function Checklist({ planId, basePlanId, navigate, goBack }) {
 
   // 赛季单抓：目标精灵（shinies[0]）
   const targetSpirit = plan.season ? plan.shinies[0] : null;
+  const _targetFileName = targetSpirit || '';
+  const _hasLocalTarget = LOCAL_SPIRIT_FILES.has(_targetFileName);
   const spiritImgSrc = targetSpirit
-    ? `${base}spirits/${encodeURIComponent(targetSpirit)}.png`
+    ? (_hasLocalTarget
+        ? `${base}spirits/${encodeURIComponent(targetSpirit)}.webp`
+        : (getWikiSpiritImg(targetSpirit) || `${base}spirits/${encodeURIComponent(targetSpirit)}.webp`))
     : null;
   const isObtained = targetSpirit ? !!state.spirits[targetSpirit]?.obtained : false;
 
@@ -150,7 +156,7 @@ export default function Checklist({ planId, basePlanId, navigate, goBack }) {
     <div style={{ paddingBottom: 24 }}>
       {/* 顶部 */}
       <div className="page-header">
-        <button className="back-btn" onClick={goBack}><img src={`${import.meta.env.BASE_URL}back-icon.png`} alt="返回" /></button>
+        <button className="back-btn" onClick={goBack}><img src={`${import.meta.env.BASE_URL}back-icon.webp`} alt="返回" /></button>
         <span className="page-header-title">确认方案</span>
         {/* 「切换方案」按钮：有多个可选方案时显示 */}
         {switcherOptions && switcherOptions.length > 1 && (
@@ -249,8 +255,13 @@ export default function Checklist({ planId, basePlanId, navigate, goBack }) {
               <img
                 src={spiritImgSrc}
                 alt={targetSpirit}
+                loading="lazy"
                 style={{ width: 56, height: 56, objectFit: 'contain' }}
-                onError={e => { e.target.style.display = 'none'; }}
+                onError={e => {
+                  const wiki = getWikiSpiritImg(targetSpirit);
+                  if (wiki && e.target.src !== wiki) { e.target.src = wiki; }
+                  else { e.target.style.display = 'none'; }
+                }}
               />
               {isObtained && (
                 <span style={{

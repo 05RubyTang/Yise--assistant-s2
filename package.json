@@ -1,17 +1,18 @@
 {
-  "name": "demo",
+  "name": "luoke4.0",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "optimize:images": "node scripts/convert-to-webp.mjs",
+    "build": "npm run optimize:images && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "deploy:test": "VITE_BASE_PATH=/Luoke-yise-test/ npm run build && gh-pages -d dist -r https://github.com/05RubyTang/Luoke-yise-test.git",
     "deploy:prod": "VITE_BASE_PATH=/yise-Luoke-v2.0-ruby-s/ npm run build && gh-pages -d dist -r https://github.com/05RubyTang/yise-Luoke-v2.0-ruby-s.git",
     "deploy:main": "VITE_BASE_PATH=/LuoKe-Shuayise/ npm run build && gh-pages -d dist -r https://github.com/05RubyTang/LuoKe-Shuayise.git",
-    "build:vercel": "VITE_BASE_PATH=/ npm run build"
+    "build:vercel": "npm run optimize:images && VITE_BASE_PATH=/ vite build"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.1",
@@ -28,6 +29,7 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "gh-pages": "^6.3.0",
     "globals": "^17.4.0",
+    "sharp": "^0.34.5",
     "vite": "^8.0.4"
   }
 }

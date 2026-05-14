@@ -1162,7 +1162,7 @@ function lookupAttr2(spiritName) {
 }
 
 /** 从方案对象中推断属性 id */
-function getPlanAttrId(plan) {
+export function getPlanAttrId(plan) {
   if (!plan) return null;
   const ALL_BASE = new Set([
     'fire','ice','electric','phantom','grass','evil','ghost','mech','light','water','cute'
@@ -1341,4 +1341,185 @@ export function getBallByPlan(plan) {
 /** 根据精灵名返回属系 id（用于 attrs/{id}.png） */
 export function getAttrIdBySpirit(spiritName) {
   return SPIRIT_ATTR1[spiritName] || null;
+}
+
+// ─── store.jsx 依赖的导出函数 ──────────────────────────────────────────────────
+
+/**
+ * classifyPool(spiritName, plan)
+ * 判断破盾出现的精灵属于哪个池子（与 classifyResultType 等价，别名导出）：
+ *   'family' — 家族池（plan 的 spiritA / spiritB 同族，70次保底）
+ *   'attr'   — 属性池（同属性非家族精灵，80次保底）
+ *   'world'  — 世界池（其他，80次保底）
+ */
+export function classifyPool(spiritName, plan) {
+  return classifyResultType(spiritName, plan);
+}
+
+/**
+ * resolveShinyKey(spiritName)
+ * 将用户填写的精灵名归一化为图鉴中的「代表异色名」。
+ * 若 spiritName 本身就是图鉴 key（PLANS 的 shinies 中存在），直接返回。
+ * 若为同家族的进化前/后形态，则找到包含该精灵的方案后返回其 shinies[0]。
+ * 找不到则返回原名（让调用方按原名处理）。
+ */
+export function resolveShinyKey(spiritName) {
+  if (!spiritName) return spiritName;
+  // 1. 所有图鉴 key 集合：PLANS 中所有 shinies 的并集
+  const allKeys = new Set(ALL_SHINIES);
+  // 精确命中：本身就是图鉴 key
+  if (allKeys.has(spiritName)) return spiritName;
+  // 2. 模糊匹配：遍历所有 shinies，找到 fuzzyMatch 的第一个
+  for (const key of allKeys) {
+    if (fuzzyMatch(key, spiritName)) return key;
+  }
+  // 3. 没有找到：返回原名（调用方按原名处理，图鉴不会误点亮）
+  return spiritName;
+}
+
+/**
+ * computePoolCounts(activeTasks, completedTasks, allPlans)
+ * 从任务事件流（shieldBreaks）派生三池当前保底计数。
+ *
+ * 规则：
+ *   - 家族池：每个进行中 task 独立计算，出货后清零
+ *   - 属性池：跨 task 全局累积（active + completed 中未出货属性池的记录）
+ *   - 世界池：跨 task 全局累积
+ *
+ * 返回：{ family: number, attr: number, world: number }
+ * （family 为「当前进行中 task」的家族池计数，多 task 并行时取最大值）
+ */
+export function computePoolCounts(activeTasks, completedTasks, allPlans) {
+  let familyMax = 0;
+  let attrTotal = 0;
+  let worldTotal = 0;
+
+  // 进行中的 task：家族池取最大值，属性池/世界池跨任务累积
+  (activeTasks || []).forEach(task => {
+    const plan = allPlans.find(p => p.id === task.planId);
+    let familyCount = 0;
+    (task.shieldBreaks || []).forEach(br => {
+      if (br.result === 'jelly') return; // jelly 不占保底
+      const pool = br.pool || (br.result !== 'shiny' && plan
+        ? classifyResultType(br.spiritName, plan)
+        : 'world');
+      if (pool === 'family') familyCount++;
+      else if (pool === 'attr') attrTotal++;
+      else worldTotal++;
+    });
+    if (familyCount > familyMax) familyMax = familyCount;
+  });
+
+  // 已完成的 task：属性池/世界池的「未出货」段贡献继续累积
+  // （出货后对应池清零，因此只看 completed 中不是出货结果的 breaks）
+  // 实际上 completedTasks 只记录最终结果，不含过程 breaks（完整 breaks 在 completedTasks[i].shieldBreaks）
+  // 若有 shieldBreaks 记录，则统计其中非出货池的 breaks
+  (completedTasks || []).forEach(completed => {
+    if (!completed || completed.resultType === 'abandoned') return;
+    const plan = allPlans.find(p => p.id === completed.planId);
+    const outPool = completed.resultType; // 'family' | 'attr' | 'world'
+    (completed.shieldBreaks || []).forEach(br => {
+      if (br.result === 'jelly') return;
+      const pool = br.pool || (plan ? classifyResultType(br.spiritName, plan) : 'world');
+      // 出货池已归零，不计入全局累积；另外两池继续累积
+      if (pool === outPool) return;
+      if (pool === 'attr') attrTotal++;
+      else if (pool === 'world') worldTotal++;
+      // family 池归属于 task 内部（已出货清零），完成任务后不再计入全局
+    });
+  });
+
+  return { family: familyMax, attr: attrTotal, world: worldTotal };
+}
+
+/**
+ * getFruitBySpirit(spiritName)
+ * 通过精灵名反查对应的果实名。
+ * 策略：在 FRUIT_ATTR 中找到以 spiritName 开头且以"果实"结尾的 key。
+ * 例：'治愈兔' → '治愈兔果实'，'小独角兽' → '小独角兽果实'。
+ * 找不到则返回 null。
+ */
+export function getFruitBySpirit(spiritName) {
+  if (!spiritName) return null;
+  // 1. 精确匹配：spiritName + '果实'
+  const exact = `${spiritName}果实`;
+  if (FRUIT_ATTR[exact] !== undefined) return exact;
+  // 2. 模糊匹配：FRUIT_ATTR 中 key 包含 spiritName 的（如昵称/别名）
+  for (const key of Object.keys(FRUIT_ATTR)) {
+    if (key.includes(spiritName)) return key;
+  }
+  return null;
+}
+
+/**
+ * getAllSpiritFruitPairs()
+ * 返回所有「精灵名 ↔ 果实名」的对照数组，每条形如 { spirit, fruit }。
+ * 数据来源：FRUIT_ATTR（遍历 key，去掉"果实"后缀得到精灵名），去重后返回。
+ */
+export function getAllSpiritFruitPairs() {
+  const result = [];
+  const seen = new Set();
+  for (const fruitName of Object.keys(FRUIT_ATTR)) {
+    if (!fruitName.endsWith('果实')) continue;
+    const spiritName = fruitName.slice(0, -2); // 去掉"果实"
+    if (seen.has(spiritName)) continue;
+    seen.add(spiritName);
+    result.push({ spirit: spiritName, fruit: fruitName });
+  }
+  return result;
+}
+
+/**
+ * getAttrByAnyName(name)
+ * 通过果实名或精灵名反查属系 ID。
+ * 先查 FRUIT_ATTR（果实名映射），再查 SPIRIT_ATTR1（精灵名映射），找不到返回 null。
+ */
+export function getAttrByAnyName(name) {
+  if (!name) return null;
+  if (FRUIT_ATTR[name]) return FRUIT_ATTR[name];
+  if (SPIRIT_ATTR1[name]) return SPIRIT_ATTR1[name];
+  return null;
+}
+
+/**
+ * computeFamilyPool(task, plan)
+ * 统计当前 task 的家族池保底计数：
+ * 遍历 task.shieldBreaks，排除 jelly 类型，
+ * 将 pool 字段缺失的记录用 classifyResultType 推断，
+ * 返回属于 'family' 的次数。
+ */
+export function computeFamilyPool(task, plan) {
+  if (!task) return 0;
+  return (task.shieldBreaks || []).filter(br => {
+    if (br.result === 'jelly') return false;
+    const pool = br.pool || (br.spiritName ? classifyResultType(br.spiritName, plan) : 'world');
+    return pool === 'family';
+  }).length;
+}
+
+/**
+ * getPlanMainPool(plan)
+ * 返回方案的主池类型：
+ *   'family' — 赛季奇遇方案 / 单精灵方案 / 有具体 shinies 列表的方案
+ *   'attr'   — 同属性混刷方案（有 attrId，无具体 shinies）
+ *   'world'  — 跨属性方案（无 attrId）
+ */
+export function getPlanMainPool(plan) {
+  if (!plan) return 'world';
+  if (plan.category === 'seasonal' || plan.singleSpirit) return 'family';
+  if (plan.shinies && plan.shinies.length > 0) return 'family';
+  if (getPlanAttrId(plan)) return 'attr';
+  return 'world';
+}
+
+/**
+ * resolvePlanIconImg(plan, attrBase)
+ * 推导方案的图标路径：
+ *   优先用 plan.iconImg，其次继承 attrBase.iconImg，都没有则返回 null。
+ */
+export function resolvePlanIconImg(plan, attrBase) {
+  if (!plan) return null;
+  if (plan.iconImg) return plan.iconImg;
+  if (attrBase?.iconImg) return attrBase.iconImg;
+  return null;
 }

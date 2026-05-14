@@ -111,6 +111,9 @@ export default function Checklist({ planId, basePlanId, navigate, goBack }) {
     const existingTask = (state.activeTasks || []).find(t => t.planId === plan.id);
     const taskExists = !!existingTask;
 
+    // 从方案对象中取赛季标记：plan.season 统一为 'S1'/'S2' 字符串，fallback 到 'S1'
+    const planSeason = (typeof plan.season === 'string' && plan.season) ? plan.season : 'S1';
+
     if (ballMode === 'byType') {
       const adv = parseInt(ballAdv.trim(), 10) || 0;
       const sea = parseInt(ballSea.trim(), 10) || 0;
@@ -122,7 +125,7 @@ export default function Checklist({ planId, basePlanId, navigate, goBack }) {
       };
       dispatch(taskExists
         ? { type: 'SET_TASK_BALLS', planId: plan.id, ...ballPayload }
-        : { type: 'START_TASK',    planId: plan.id, ...ballPayload }
+        : { type: 'START_TASK',    planId: plan.id, season: planSeason, ...ballPayload }
       );
     } else {
       const parsed = ballInput.trim() ? parseInt(ballInput.trim(), 10) : null;
@@ -135,7 +138,7 @@ export default function Checklist({ planId, basePlanId, navigate, goBack }) {
       };
       dispatch(taskExists
         ? { type: 'SET_TASK_BALLS', planId: plan.id, ...ballPayload }
-        : { type: 'START_TASK',    planId: plan.id, ...ballPayload }
+        : { type: 'START_TASK',    planId: plan.id, season: planSeason, ...ballPayload }
       );
     }
     navigate('recorder', { planId: plan.id });

@@ -12,6 +12,7 @@
     "deploy:test": "VITE_BASE_PATH=/Luoke-yise-test/ npm run build && gh-pages -d dist -r https://github.com/05RubyTang/Luoke-yise-test.git",
     "deploy:prod": "VITE_BASE_PATH=/yise-Luoke-v2.0-ruby-s/ npm run build && gh-pages -d dist -r https://github.com/05RubyTang/yise-Luoke-v2.0-ruby-s.git",
     "deploy:main": "VITE_BASE_PATH=/LuoKe-Shuayise/ npm run build && gh-pages -d dist -r https://github.com/05RubyTang/LuoKe-Shuayise.git",
+    "deploy:s2": "VITE_BASE_PATH=/Yise--assistant-s2/ npm run build && gh-pages -d dist -r https://github.com/05RubyTang/Yise--assistant-s2.git",
     "build:vercel": "npm run optimize:images && VITE_BASE_PATH=/ vite build"
   },
   "dependencies": {

@@ -1,27 +1,54 @@
 import { useState } from 'react';
 import { useStore } from '../store';
-import { PLANS, ATTR_SHINIES, SEASON_SHINIES, findPlansForSpirit, SPECIAL_FORMS, resolveShinyKey } from '../data/plans';
+import { PLANS, ATTR_SHINIES, SEASON_SHINIES, findPlansForSpirit, SPECIAL_FORMS, resolveShinyKey, S1_PLANS, S2_PLANS } from '../data/plans';
 import SpiritAvatar from '../components/SpiritAvatar';
 import PlanIcon from '../components/PlanIcon';
 import { getWikiSpiritImg } from '../data/spirits-wiki';
 import { getWikiFruitImg } from '../data/fruits-wiki';
 import { LOCAL_SPIRIT_FILES, LOCAL_FRUIT_FILES } from '../data/local-assets';
+import SeasonSwitcher from '../components/SeasonSwitcher';
 
 const base = import.meta.env.BASE_URL;
 
 // 精灵名 → 本地图片文件名映射
 const SPIRIT_IMG_FILE = { '柴渣虫': '燃薪虫' };
 
-// 全部精灵列表（保留顺序：先赛季奇遇，再普通异色，各自内部去重）
-const ALL_SPIRITS = [
-  ...SEASON_SHINIES,
-  ...ATTR_SHINIES,
-];
+// S2 战令精灵列表
+const S2_BATTLE_PASS_SPIRITS = ['雪怪', '爆焰喷喷'];
 
-// 判断某精灵属于哪类
-const SEASON_SET = new Set(SEASON_SHINIES);
-function getSpiritTag(name) {
-  return SEASON_SET.has(name) ? 'adventure' : 'attr';
+// 获取指定赛季的精灵列表
+function getSpiritsBySeason(season) {
+  const seasonPlans = season === 'S1' ? S1_PLANS : S2_PLANS;
+  const seasonShinies = [];
+  const attrShinies = [];
+  const battlePassShinies = season === 'S2' ? S2_BATTLE_PASS_SPIRITS : [];
+
+  seasonPlans.forEach(plan => {
+    if (plan.shinies && plan.shinies.length > 0) {
+      const isSeasonalPlan = plan.season === true || plan.category === 'seasonal';
+      if (isSeasonalPlan) {
+        seasonShinies.push(...plan.shinies);
+      } else {
+        attrShinies.push(...plan.shinies);
+      }
+    }
+  });
+
+  return {
+    all: [...new Set([...seasonShinies, ...attrShinies, ...battlePassShinies])],
+    seasonal: [...new Set(seasonShinies)],
+    attr: [...new Set(attrShinies)],
+    battlePass: battlePassShinies,
+  };
+}
+
+// 判断某精灵属于哪类（基于赛季）
+function getSpiritTag(name, season) {
+  const spiritsByseason = getSpiritsBySeason(season);
+  if (spiritsByseason.battlePass.includes(name)) return 'battlePass';
+  if (spiritsByseason.seasonal.includes(name)) return 'adventure';
+  if (spiritsByseason.attr.includes(name)) return 'attr';
+  return 'attr'; // fallback
 }
 
 // 获取某只图鉴精灵的获取记录。
@@ -342,13 +369,22 @@ const FILTERS = [
 
 // ─── 主页面 ───────────────────────────────────────────────────────────────────
 export default function Collection() {
-  const { state } = useStore();
+  const { state, dispatch } = useStore();
+  const currentSeason = state.currentSeason || 'S2';
   const [filter, setFilter] = useState('all');
   const [selected, setSelected] = useState(null);
+
+  // 获取当前赛季的精灵列表
+  const spiritsByseason = getSpiritsBySeason(currentSeason);
+  const ALL_SPIRITS = spiritsByseason.all;
+  const SEASON_SHINIES = spiritsByseason.seasonal;
+  const ATTR_SHINIES = spiritsByseason.attr;
+  const BATTLE_PASS_SHINIES = spiritsByseason.battlePass;
 
   // 统计
   const totalCount  = ALL_SPIRITS.length;
   const obtainedCount = ALL_SPIRITS.filter(n => state.spirits[n]?.obtained).length;
+  const battlePassObtained = BATTLE_PASS_SHINIES.filter(n => state.battlePassSpirits?.[n]?.obtained).length;
   const pct = totalCount > 0 ? Math.round((obtainedCount / totalCount) * 100) : 0;
 
   const attrObtained    = ATTR_SHINIES.filter(n => state.spirits[n]?.obtained).length;
@@ -357,30 +393,40 @@ export default function Collection() {
   // 按筛选条件过滤
   const visibleSpirits = ALL_SPIRITS.filter(name => {
     const obtained = !!state.spirits[name]?.obtained;
-    const tag = getSpiritTag(name);
+    const tag = getSpiritTag(name, currentSeason);
     if (filter === 'obtained')  return obtained;
     if (filter === 'missing')   return !obtained;
     if (filter === 'adventure') return tag === 'adventure';
     if (filter === 'attr')      return tag === 'attr';
+    if (filter === 'battlePass') return tag === 'battlePass';
     return true;
   });
 
   const selectedPlans   = selected ? findPlansForSpirit(selected) : [];
   const selectedRecords = selected ? getSpiritRecords(selected, state) : [];
-  const selectedTag     = selected ? getSpiritTag(selected) : null;
+  const selectedTag     = selected ? getSpiritTag(selected, currentSeason) : null;
+  const isBattlePassSpirit = selected && BATTLE_PASS_SHINIES.includes(selected);
 
   return (
     <div style={{ paddingBottom: 28 }}>
 
+      {/* ── 赛季切换器 ── */}
+      <div style={{ padding: '16px 16px 12px' }}>
+        <SeasonSwitcher />
+      </div>
+
       {/* ── 收集进度条（含标题+说明） ── */}
-      <div style={{ margin: '16px 16px 14px', padding: '12px 14px', background: 'var(--card)', border: '1.5px solid var(--card-border)', borderRadius: 'var(--radius-sm)', boxShadow: 'var(--shadow-card)' }}>
+      <div style={{ margin: '0 16px 14px', padding: '12px 14px', background: 'var(--card)', border: '1.5px solid var(--card-border)', borderRadius: 'var(--radius-sm)', boxShadow: 'var(--shadow-card)' }}>
         {/* 活动标题 + 说明 */}
         <div style={{ marginBottom: 10 }}>
           <div className="font-subtitle" style={{ fontSize: 16, fontWeight: 900, color: 'var(--text)', marginBottom: 3 }}>
-            S1 赛季 · 异色&奇遇
+            {currentSeason === 'S1' ? 'S1 暗夜时光 · 异色&奇遇' : 'S2 狂欢怪谈 · 异色&奇遇'}
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.7 }}>
-            属性果实循环产出异色精灵；赛季奇遇精灵需完成第六章赛季任务后刷取
+            {currentSeason === 'S1'
+              ? '属性果实循环产出异色精灵；赛季奇遇精灵需完成第六章赛季任务后刷取'
+              : '单刷专属果实可获得对应异色；赛季奇遇精灵需完成 S2 赛季任务'
+            }
           </div>
         </div>
         {/* 分隔线 */}
@@ -464,8 +510,11 @@ export default function Collection() {
       ) : (
         <div className="collection-grid">
           {visibleSpirits.map(name => {
-            const isObtained = !!state.spirits[name]?.obtained;
-            const tag = getSpiritTag(name);
+            const isBattlePass = BATTLE_PASS_SHINIES.includes(name);
+            const isObtained = isBattlePass
+              ? !!state.battlePassSpirits?.[name]?.obtained
+              : !!state.spirits[name]?.obtained;
+            const tag = getSpiritTag(name, currentSeason);
             return (
               <div
                 key={name}
@@ -482,6 +531,13 @@ export default function Collection() {
                     showName={false}
                     bare
                   />
+                  {/* 战令图标 */}
+                  {isBattlePass && (
+                    <span style={{
+                      position: 'absolute', top: -2, left: -2,
+                      fontSize: 11, lineHeight: 1,
+                    }}>💎</span>
+                  )}
                   {/* 已获得 ✓ 角标 */}
                   {isObtained && (
                     <span style={{
@@ -518,12 +574,14 @@ export default function Collection() {
                 <span style={{
                   fontSize: 8, fontWeight: 700,
                   padding: '1px 5px', borderRadius: 20,
-                  ...(tag === 'adventure'
+                  ...(tag === 'battlePass'
+                    ? { background: 'rgba(255,193,7,0.15)', color: '#F57C00', border: '1px solid rgba(255,193,7,0.4)' }
+                    : tag === 'adventure'
                     ? { background: 'rgba(244,143,177,0.15)', color: '#C0568A', border: '1px solid rgba(244,143,177,0.4)' }
                     : { background: 'rgba(103,170,92,0.13)', color: '#4A8C40', border: '1px solid rgba(103,170,92,0.3)' }
                   ),
                 }}>
-                  {tag === 'adventure' ? '奇遇' : '异色'}
+                  {tag === 'battlePass' ? '战令' : tag === 'adventure' ? '奇遇' : '异色'}
                 </span>
               </div>
             );
@@ -573,32 +631,100 @@ export default function Collection() {
                     {/* 类型 tag */}
                     <span style={{
                       fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
-                      ...(selectedTag === 'adventure'
+                      ...(selectedTag === 'battlePass'
+                        ? { background: 'rgba(255,193,7,0.15)', color: '#F57C00', border: '1px solid rgba(255,193,7,0.4)' }
+                        : selectedTag === 'adventure'
                         ? { background: 'rgba(244,143,177,0.15)', color: '#C0568A', border: '1px solid rgba(244,143,177,0.4)' }
                         : { background: 'rgba(103,170,92,0.13)', color: '#4A8C40', border: '1px solid rgba(103,170,92,0.3)' }
                       ),
                     }}>
-                      {selectedTag === 'adventure' ? '赛季奇遇' : '赛季异色'}
+                      {selectedTag === 'battlePass' ? '💎 战令专属' : selectedTag === 'adventure' ? '赛季奇遇' : '赛季异色'}
                     </span>
                   </div>
                 </div>
               </div>
 
+              {/* 战令标记功能 */}
+              {isBattlePassSpirit && (
+                <div style={{
+                  marginBottom: 16,
+                  padding: '12px',
+                  background: 'rgba(255,193,7,0.08)',
+                  border: '1.5px solid rgba(255,193,7,0.25)',
+                  borderRadius: 8,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <span style={{ fontSize: 16 }}>💎</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#F57C00' }}>
+                      {currentSeason} 通行证专属异色
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.6 }}>
+                    购买 {currentSeason} 通行证后即可直接获得，无需刷取
+                  </div>
+                  {!state.battlePassSpirits?.[selected]?.obtained ? (
+                    <button
+                      onClick={() => dispatch({ type: 'MARK_BATTLE_PASS_OBTAINED', spiritName: selected })}
+                      style={{
+                        width: '100%',
+                        padding: '8px 16px',
+                        border: '1.5px solid rgba(255,193,7,0.4)',
+                        borderRadius: 8,
+                        background: 'linear-gradient(135deg, #FFB300 0%, #F57C00 100%)',
+                        color: '#fff',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
+                      onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                    >
+                      ✓ 标记已获得
+                    </button>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#4B9C46' }}>
+                        ✓ 已标记为获得
+                      </span>
+                      <button
+                        onClick={() => dispatch({ type: 'UNMARK_BATTLE_PASS_OBTAINED', spiritName: selected })}
+                        style={{
+                          padding: '4px 12px',
+                          border: '1.5px solid rgba(103,93,83,0.25)',
+                          borderRadius: 6,
+                          background: 'var(--card)',
+                          color: 'var(--text-muted)',
+                          fontSize: 10,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        取消标记
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* 刷取攻略标题 */}
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-light)', marginBottom: 8, letterSpacing: 0.5 }}>
-                刷取攻略
-              </div>
+              {!isBattlePassSpirit && (
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-light)', marginBottom: 8, letterSpacing: 0.5 }}>
+                  刷取攻略
+                </div>
+              )}
 
-              {/* 所有关联方案：积累属系池方案优先 */}
-              {selectedPlans.length > 0
-                ? [...selectedPlans]
-                    .sort((a, b) => (b.noShiny ? 1 : 0) - (a.noShiny ? 1 : 0))
-                    .map(plan => <PlanInfo key={plan.id} plan={plan} />)
-                : <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: 12 }}>暂无攻略数据</div>
-              }
+              {/* 所有关联方案：积累属系池方案优先（战令精灵不显示） */}
+              {!isBattlePassSpirit && (
+                selectedPlans.length > 0
+                  ? [...selectedPlans]
+                      .sort((a, b) => (b.noShiny ? 1 : 0) - (a.noShiny ? 1 : 0))
+                      .map(plan => <PlanInfo key={plan.id} plan={plan} />)
+                  : <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: 12 }}>暂无攻略数据</div>
+              )}
 
-              {/* 获取记录 */}
-              {selectedRecords.length > 0 && (
+              {/* 获取记录（战令精灵不显示） */}
+              {!isBattlePassSpirit && selectedRecords.length > 0 && (
                 <>
                   <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-light)', margin: '12px 0 4px', letterSpacing: 0.5 }}>
                     获取记录

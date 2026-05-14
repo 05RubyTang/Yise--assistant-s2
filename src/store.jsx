@@ -1,5 +1,6 @@
 import { createContext, useContext, useReducer, useEffect, useMemo, useRef, useState } from 'react';
 import { ALL_SHINIES, classifyPool, computePoolCounts, PLANS, resolveShinyKey, FRUIT_ATTR, getAttrByAnyName } from './data/plans';
+import { DEFAULT_SEASON } from './data/seasons';
 import { supabase } from './supabase';
 
 const STORAGE_KEY = 'roco-shiny-helper';
@@ -46,6 +47,47 @@ function buildDefaultState() {
     // worldPool: number                世界池全局累计计数
     attrPools: {},
     worldPool: 0,
+    // ── 赛季相关 ─────────────────────────────────────────────────────────
+    currentSeason: DEFAULT_SEASON,  // 当前选中的赛季（'S1' | 'S2'）
+    battlePassSpirits: {},          // 战令异色标记 { '雪怪': { obtained: true, obtainedAt: '...' } }
+    // ── 数据迁移标记 ──────────────────────────────────────────────────────
+    _migratedToSeasons: false,      // 旧数据迁移完成标记（幂等保障）
+  };
+}
+
+// ─── 数据迁移：为旧版 S1 数据补全 season 字段（幂等，仅执行一次）──────────────
+// 触发条件：_migratedToSeasons 不为 true 的本地存量数据
+// 策略：
+//   - activeTasks：缺 season 的任务补 'S1'（S1 时期遗留任务）
+//   - completedTasks：缺 season 的任务补 'S1'
+//   - spirits：保持不变（spirits 对象本身无需 season 字段）
+//   - currentSeason：保持原值不覆盖（用户自己选择的赛季状态）
+// 注意：不强制把 currentSeason 改为 S2，让用户自行切换
+function migrateLegacyData(state) {
+  if (state._migratedToSeasons) return state;
+
+  let changed = false;
+
+  // activeTasks：补 season 字段（仅当 season 是合法字符串时才跳过；旧数据中 season 可能是 true）
+  const activeTasks = (state.activeTasks || []).map(task => {
+    if (typeof task.season === 'string' && task.season) return task;
+    changed = true;
+    return { ...task, season: 'S1' };
+  });
+
+  // completedTasks：补 season 字段（同上，修复旧数据中 season: true 的情况）
+  const completedTasks = (state.completedTasks || []).map(task => {
+    if (typeof task.season === 'string' && task.season) return task;
+    changed = true;
+    return { ...task, season: 'S1' };
+  });
+
+  // 标记迁移完成（幂等保障）
+  return {
+    ...state,
+    activeTasks,
+    completedTasks,
+    _migratedToSeasons: true,
   };
 }
 
@@ -69,7 +111,7 @@ function getLocalState() {
       if (Array.isArray(parsed.completedTasks)) {
         parsed.completedTasks = parsed.completedTasks.filter(t => t.resultType !== 'abandoned');
       }
-      return {
+      const merged = {
         ...defaults,          // 先铺默认值（兜底所有新增顶层字段）
         ...parsed,            // 再用旧数据覆盖（保留已有内容）
         spirits: {
@@ -77,6 +119,8 @@ function getLocalState() {
           ...parsed.spirits,    // 旧精灵数据保留
         },
       };
+      // 数据迁移：为旧版 S1 数据补全 season 字段（幂等）
+      return migrateLegacyData(merged);
     }
   } catch {}
   return buildDefaultState();
@@ -100,6 +144,7 @@ function reducer(state, action) {
       const newTask = {
         id: 'task_' + Date.now(),
         planId: action.planId,
+        season: action.season || 'S1',               // 赛季标记（兜底 S1 兼容旧数据）
         status: 'in_progress',
         startTime: new Date().toISOString(),
         shieldBreaks: [],
@@ -322,6 +367,7 @@ function reducer(state, action) {
       const completed = {
         id: task.id,
         planId: task.planId,
+        season: task.season || 'S1',                  // 继承 task 的赛季标记（兜底 S1）
         resultSpirit: action.spiritName,
         resultType: action.resultType || (action.isPool ? 'pool' : 'offpool'),
         shieldBreakCount: task.shieldBreakCount,
@@ -398,6 +444,7 @@ function reducer(state, action) {
       const completed = {
         id: task.id,
         planId: task.planId,
+        season: task.season || 'S1',                  // 继承 task 的赛季标记（兜底 S1）
         resultSpirit: action.spiritName,
         resultType: action.resultType || (action.isPool ? 'pool' : 'offpool'),
         shieldBreakCount: task.shieldBreakCount,
@@ -781,6 +828,33 @@ function reducer(state, action) {
         customFruits: [...(state.customFruits || []), ...toAdd],
       };
     }
+    case 'SWITCH_SEASON': {
+      return {
+        ...state,
+        currentSeason: action.season,
+      };
+    }
+    case 'MARK_BATTLE_PASS_OBTAINED': {
+      const now = new Date().toISOString();
+      return {
+        ...state,
+        battlePassSpirits: {
+          ...state.battlePassSpirits,
+          [action.spiritName]: {
+            obtained: true,
+            obtainedAt: now,
+          },
+        },
+      };
+    }
+    case 'UNMARK_BATTLE_PASS_OBTAINED': {
+      const newBattlePassSpirits = { ...state.battlePassSpirits };
+      delete newBattlePassSpirits[action.spiritName];
+      return {
+        ...state,
+        battlePassSpirits: newBattlePassSpirits,
+      };
+    }
     default:
       return state;
   }
@@ -1004,7 +1078,21 @@ function mergeStates(local, cloud) {
   const attrPools = {};
   const worldPool = 0;
 
-  return { spirits, fruitProgress, activeTasks, abandonedPlanIds, completedTasks, userPlanConfig, ownedFruits, customFruits, attrPools, worldPool };
+  // 赛季相关：本地优先（本地 currentSeason 是用户当前选择的状态）
+  const currentSeason = local.currentSeason || cloud.currentSeason || defaults.currentSeason;
+  // battlePassSpirits：两边取并集（任意一边标记的战令异色都保留）
+  const battlePassSpirits = {
+    ...(cloud.battlePassSpirits || {}),
+    ...(local.battlePassSpirits || {}),   // 本地覆盖云端（本地为最新）
+  };
+  // _migratedToSeasons：两边任一为 true 则标记为已迁移
+  const _migratedToSeasons = !!(local._migratedToSeasons || cloud._migratedToSeasons);
+
+  return {
+    spirits, fruitProgress, activeTasks, abandonedPlanIds, completedTasks,
+    userPlanConfig, ownedFruits, customFruits, attrPools, worldPool,
+    currentSeason, battlePassSpirits, _migratedToSeasons,
+  };
 }
 
 // ─── 工具：从云端拉取并水合数据（始终合并，不丢弃任何一方数据）─────────────
@@ -1143,10 +1231,12 @@ async function hydrateFromCloud(uid, dispatch, localFallback, overwriteUserMeta 
 
     const mergedRaw = mergeStates(localData, cloudData);
     // 清理存量 abandoned 记录（已废弃类型，不应再出现在刷取记录里）
-    const merged = {
+    // 同时执行数据迁移：为旧版 S1 数据补全 season 字段（幂等）
+    const mergedFiltered = {
       ...mergedRaw,
       completedTasks: (mergedRaw.completedTasks || []).filter(t => t.resultType !== 'abandoned'),
     };
+    const merged = migrateLegacyData(mergedFiltered);
     dispatch({ type: '_HYDRATE_FROM_CLOUD', data: merged });
     // 把合并结果写到新 uid 下（data 列精简，completed_tasks_full 列存完整 shieldBreaks）
     try {

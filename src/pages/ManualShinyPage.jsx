@@ -6,8 +6,8 @@ import PlanIcon from '../components/PlanIcon';
 
 /* ── 果实方案选择弹窗 ── */
 function PlanPickerModal({ value, onChange, onClose }) {
-  const regularPlans = PLANS.filter(p => !p.season);
-  const seasonPlans  = PLANS.filter(p =>  p.season);
+  const regularPlans = PLANS.filter(p => p.category !== 'seasonal');
+  const seasonPlans  = PLANS.filter(p => p.category === 'seasonal');
 
   const Row = ({ p }) => {
     const isSel = value === p.id;

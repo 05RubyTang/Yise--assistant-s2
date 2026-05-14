@@ -7,6 +7,7 @@ import PlanCard from '../components/PlanCard';
 import PlanIcon from '../components/PlanIcon';
 import SpiritAvatar from '../components/SpiritAvatar';
 import { FruitLine } from '../components/FruitTag';
+import SeasonSwitcher from '../components/SeasonSwitcher';
 
 /* ─── picker 模式：弹出方案选择 sheet ─────────────────────────────────────── */
 function PlanSubPicker({ basePlan, userPlans, onSelect, onClose }) {
@@ -379,6 +380,7 @@ function getPlanAttr(plan) {
 /* ─── 主页面 ─────────────────────────────────────────────────────────────────── */
 export default function PlanList({ navigate, mode = 'library', goBack }) {
   const { state } = useStore();
+  const currentSeason = state.currentSeason || 'S2';
   const [filter, setFilter] = useState('all');
   // 已确认生效的筛选状态
   const [fruitFilter, setFruitFilter] = useState('all'); // 'all' | 'ready' | 'missing'
@@ -394,10 +396,17 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
   const resetTempFilters = () => { setTempFruitFilter('all'); setTempAttrFilter('all'); };
   const activeFilterCount = (fruitFilter !== 'all' ? 1 : 0) + (attrFilter !== 'all' ? 1 : 0);
 
+  // ─── 按赛季筛选方案 ───────────────────────────────────────────────────────
+  // 判断是否为赛季奇遇方案：S1 用 season: true，S2 用 category: 'seasonal'
+  const isSeasonalPlan = (p) => p.season === true || p.category === 'seasonal';
+
+  // 筛选当前赛季的方案
+  const currentSeasonPlans = PLANS.filter(p => p.season === currentSeason);
+
   // noShiny 且有 attrId 的方案归属父属系二级页，不在主列表独立展示
-  const attrPlans        = PLANS.filter(p => !p.season && !p.singleSpirit && !(p.noShiny && p.attrId));
-  const seasonPlans      = PLANS.filter(p => p.season);
-  const singleSpiritPlans = PLANS.filter(p => p.singleSpirit);
+  const attrPlans        = currentSeasonPlans.filter(p => !isSeasonalPlan(p) && !p.singleSpirit && !(p.noShiny && p.attrId));
+  const seasonPlans      = currentSeasonPlans.filter(p => isSeasonalPlan(p));
+  const singleSpiritPlans = currentSeasonPlans.filter(p => p.singleSpirit);
 
   // 已拥有果实
   const ownedFruits = state.ownedFruits || [];
@@ -685,9 +694,14 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
     <>
     <div style={{ paddingBottom: 24 }}>
 
+      {/* ── 赛季切换器 ── */}
+      <div style={{ padding: '20px 16px 12px' }}>
+        <SeasonSwitcher />
+      </div>
+
       {/* ── 顶部总览数据模块（含标题+说明） ── */}
       <div style={{
-        margin: '32px 16px 14px',
+        margin: '14px 16px 14px',
         background: 'var(--card)',
         border: '1.5px solid var(--card-border)',
         borderRadius: 'var(--radius-sm)',

@@ -25,6 +25,8 @@ function getSpiritsBySeason(season) {
 
   seasonPlans.forEach(plan => {
     if (plan.shinies && plan.shinies.length > 0) {
+      // 战令专属方案不计入属性池（已由 battlePassShinies 硬编码维护）
+      if (plan.battlePass) return;
       const isSeasonalPlan = plan.season === true || plan.category === 'seasonal';
       if (isSeasonalPlan) {
         seasonShinies.push(...plan.shinies);

@@ -353,7 +353,7 @@ export const S2_PLANS = [
     fruitB: null,
     spiritA: '菊花梨',
     spiritB: null,
-    shinies: ['菊花梨', '加油海葵', '治愈兔', '大耳帽兜'],
+    shinies: ['菊花梨', '加油海葵'],
     unlockA: '待游戏更新后补充',
     unlockB: null,
   },

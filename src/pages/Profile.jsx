@@ -9,6 +9,7 @@ import PlanIcon from '../components/PlanIcon';
 import SpiritAvatar from '../components/SpiritAvatar';
 import ShieldDots from '../components/ShieldDots';
 import { PLANS, ALL_SHINIES, inferPoolType, POOL_TYPE_CONFIG, getBallBySpirit, getBallByPlan, getAttrIdBySpirit, getPlanAttrId, computeFamilyPool } from '../data/plans';
+import { SEASONS } from '../data/seasons';
 
 // 模块加载时计算一次，每次 Vite 重新构建值变化 → 强制浏览器放弃旧缓存
 const _HERO_CARD_V = Date.now();
@@ -484,8 +485,21 @@ function HistoryCard({ task, index, userPlanConfig, onDetail }) {
           }}>
             {isSuccess ? task.resultSpirit : `${plan?.type || '?'}方案 · 未完成`}
           </div>
-          <div style={{ fontSize: 11, color: '#A09080', fontWeight: 500 }}>
-            {formatDateTime(task.completedAt)}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 11, color: '#A09080', fontWeight: 500 }}>
+              {formatDateTime(task.completedAt)}
+            </span>
+            {(task.season || 'S1') && (
+              <span style={{
+                fontSize: 9, fontWeight: 800, padding: '1px 6px', borderRadius: 8,
+                background: (task.season || 'S1') === 'S2' ? 'rgba(232,115,58,0.15)' : 'rgba(139,115,85,0.12)',
+                color: (task.season || 'S1') === 'S2' ? '#E8733A' : '#8B7355',
+                border: `1px solid ${(task.season || 'S1') === 'S2' ? 'rgba(232,115,58,0.3)' : 'rgba(139,115,85,0.25)'}`,
+                lineHeight: 1.5, flexShrink: 0,
+              }}>
+                {SEASONS[task.season || 'S1']?.name || '暗夜时光'}
+              </span>
+            )}
           </div>
         </div>
         <button
@@ -1099,6 +1113,8 @@ export default function Profile({ navigate, initialDetailTaskId = null }) {
   const { state, syncStatus, authUser, userId, lastSyncResult, retrySyncNow, pingSync, poolCounts } = useStore();
   // null = 主页，'history' = 刷取记录子页，'detail' = 刷取详情全页面
   const [subPage, setSubPage] = useState(initialDetailTaskId ? 'detail' : null);
+  // 历史记录赛季筛选：'all' | 'S1' | 'S2'
+  const [historySeasonFilter, setHistorySeasonFilter] = useState('all');
 
   // ── 每次进入「我的」主页时探查同步状态 ──
   // 1. 挂载时触发（切 Tab 到「我的」）
@@ -2032,16 +2048,70 @@ export default function Profile({ navigate, initialDetailTaskId = null }) {
             </div>
           ) : (
             <>
-              <div style={{ margin: '4px 16px 6px', fontSize: 11, color: 'var(--text-light)', fontWeight: 700, letterSpacing: 1 }}>
-                ▼ 最近记录（共 {tasks.length} 条）
+              {/* ── 赛季筛选 Pill Tab ── */}
+              <div style={{
+                display: 'flex', gap: 6, margin: '6px 16px 6px',
+                overflowX: 'auto', paddingBottom: 2,
+              }}>
+                {[
+                  { key: 'all', label: '全部', emoji: '📋' },
+                  { key: 'S2',  label: 'S2 狂欢怪谈', emoji: '🎪' },
+                  { key: 'S1',  label: 'S1 暗夜时光', emoji: '🌙' },
+                ].map(({ key, label, emoji }) => {
+                  const isActive = historySeasonFilter === key;
+                  const isS2Tab = key === 'S2';
+                  const accentColor = isS2Tab ? '#E8733A' : key === 'S1' ? '#8B7355' : '#675D53';
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setHistorySeasonFilter(key)}
+                      style={{
+                        flexShrink: 0,
+                        padding: '5px 12px', borderRadius: 20,
+                        border: `1.5px solid ${isActive ? accentColor : 'rgba(103,93,83,0.2)'}`,
+                        background: isActive
+                          ? (isS2Tab ? 'rgba(232,115,58,0.12)' : key === 'S1' ? 'rgba(139,115,85,0.1)' : 'rgba(103,93,83,0.08)')
+                          : 'var(--card-inner)',
+                        color: isActive ? accentColor : 'var(--text-muted)',
+                        fontSize: 11, fontWeight: isActive ? 800 : 600,
+                        cursor: 'pointer', fontFamily: 'var(--font-body)',
+                        transition: 'all 0.15s',
+                        display: 'flex', alignItems: 'center', gap: 4,
+                      }}
+                    >
+                      <span>{emoji}</span>
+                      <span>{label}</span>
+                    </button>
+                  );
+                })}
               </div>
-              {tasks.map((task, i) => (
-                <HistoryCard
-                  key={task.id || i} task={task} index={i}
-                  userPlanConfig={state.userPlanConfig}
-                  onDetail={task.resultType !== 'abandoned' ? () => openDetail(task) : null}
-                />
-              ))}
+
+              {/* ── 记录列表（按赛季过滤） ── */}
+              {(() => {
+                const filteredTasks = historySeasonFilter === 'all'
+                  ? tasks
+                  : tasks.filter(t => (t.season || 'S1') === historySeasonFilter);
+                return (
+                  <>
+                    <div style={{ margin: '0 16px 6px', fontSize: 11, color: 'var(--text-light)', fontWeight: 700, letterSpacing: 1 }}>
+                      ▼ {historySeasonFilter === 'all' ? '最近记录' : `${historySeasonFilter} 赛季记录`}（共 {filteredTasks.length} 条）
+                    </div>
+                    {filteredTasks.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '24px 0 12px', color: 'var(--text-muted)', fontSize: 12, fontWeight: 600 }}>
+                        暂无 {historySeasonFilter} 赛季刷取记录
+                      </div>
+                    ) : (
+                      filteredTasks.map((task, i) => (
+                        <HistoryCard
+                          key={task.id || i} task={task} index={i}
+                          userPlanConfig={state.userPlanConfig}
+                          onDetail={task.resultType !== 'abandoned' ? () => openDetail(task) : null}
+                        />
+                      ))
+                    )}
+                  </>
+                );
+              })()}
             </>
           )}
         </div>

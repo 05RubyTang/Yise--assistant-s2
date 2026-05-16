@@ -281,10 +281,12 @@ function PlanInfo({ plan }) {
 
 // ─── 获取记录行 ───────────────────────────────────────────────────────────────
 function RecordRow({ rec, index }) {
-  const { dispatch } = useStore();
+  const { dispatch, state } = useStore();
   const [editing, setEditing] = useState(false);
   const [inputVal, setInputVal] = useState(rec.ballsUsed != null ? String(rec.ballsUsed) : '');
-  const plan = PLANS.find(p => p.id === rec.planId);
+  // 同时在内置方案和用户自定义方案中查找（自定义方案 id 形如 user_plan_xxx）
+  const plan = PLANS.find(p => p.id === rec.planId)
+    || (state.userPlanConfig || []).find(p => p.id === rec.planId);
 
   const handleSave = () => {
     const val = inputVal.trim();

@@ -161,7 +161,7 @@ function AppInner() {
       case 'customChecklist':
         return <CustomChecklist navigate={navigate} goBack={goBack} saveOnly={!!current.params.saveOnly} />;
       case 'myCustomPlans':
-        return <MyCustomPlans goBack={goBack} />;
+        return <MyCustomPlans goBack={goBack} navigate={navigate} />;
       default:
         return <Home navigate={navigate} />;
     }

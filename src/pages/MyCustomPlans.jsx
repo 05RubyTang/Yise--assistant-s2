@@ -3,11 +3,14 @@ import { useStore } from '../store';
 import SpiritAvatar from '../components/SpiritAvatar';
 import PlanIcon from '../components/PlanIcon';
 import { FruitLine } from '../components/FruitTag';
+import { getPlanFruitsArray } from '../data/plans';
 
 function isFruitReady(plan, ownedFruits) {
   const owned = new Set(ownedFruits || []);
-  if (!plan.fruitA) return true;
-  return owned.has(plan.fruitA) && (!plan.fruitB || owned.has(plan.fruitB));
+  const fruits = getPlanFruitsArray(plan);
+  if (fruits.length === 0) return true;
+  // 至少第一个果实已拥有才算准备好
+  return owned.has(fruits[0]?.fruit);
 }
 
 function FruitMissingBadge() {
@@ -32,7 +35,7 @@ function formatDate(isoStr) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export default function MyCustomPlans({ goBack }) {
+export default function MyCustomPlans({ goBack, navigate }) {
   const { state, dispatch } = useStore();
   const [deletingPlan, setDeletingPlan] = useState(null); // { plan, taskCount }
   const userPlans = (state.userPlanConfig || []).filter(p => !p.deleted);
@@ -134,12 +137,23 @@ export default function MyCustomPlans({ goBack }) {
 
       {/* 空状态 */}
       {userPlans.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-state-icon">🧪</div>
-          <div className="empty-state-text">
-            还没有自定义方案<br />
-            去「方案」页新建一个吧
+        <div style={{ padding: '16px 16px 24px', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
+          {/* 空状态下的新建按钮 */}
+          <div
+            onClick={() => navigate?.('planEditor', {})}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              gap: 8, borderRadius: 12, padding: '14px 16px',
+              background: 'rgba(147,51,234,0.08)',
+              border: '1.5px dashed rgba(147,51,234,0.35)',
+              cursor: 'pointer', marginBottom: 16,
+            }}
+          >
+            <span style={{ fontSize: 18 }}>✏️</span>
+            <span style={{ color: 'rgb(147,51,234)', fontWeight: 600, fontSize: 15 }}>新建方案</span>
           </div>
+          <div className="empty-state-icon">🧪</div>
+          <div className="empty-state-text">还没有自定义方案</div>
         </div>
       ) : (
         <div style={{ paddingBottom: 24 }}>
@@ -193,6 +207,22 @@ export default function MyCustomPlans({ goBack }) {
             </div>
           </div>
 
+          {/* 新建方案按钮（列表第一项） */}
+          <div
+            onClick={() => navigate?.('planEditor', {})}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              gap: 8, borderRadius: 12, padding: '14px 16px',
+              background: 'rgba(147,51,234,0.08)',
+              border: '1.5px dashed rgba(147,51,234,0.35)',
+              cursor: 'pointer',
+              margin: '0 16px 8px',
+            }}
+          >
+            <span style={{ fontSize: 18 }}>✏️</span>
+            <span style={{ color: 'rgb(147,51,234)', fontWeight: 600, fontSize: 15 }}>新建方案</span>
+          </div>
+
           {/* 方案卡片列表 */}
           {sorted.map(({ plan, planTasks, spirits, latestTask }, idx) => (
             <div
@@ -221,7 +251,7 @@ export default function MyCustomPlans({ goBack }) {
                   </div>
                   {/* 果实信息 + 未集齐标记 */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, marginBottom: 1, flexWrap: 'wrap' }}>
-                    <FruitLine fruitA={plan.fruitA} fruitB={plan.fruitB} size={13} />
+                    <FruitLine fruits={getPlanFruitsArray(plan)} size={13} />
                     {!isFruitReady(plan, ownedFruits) && <FruitMissingBadge />}
                   </div>
                   <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1, fontWeight: 500 }}>
@@ -230,8 +260,8 @@ export default function MyCustomPlans({ goBack }) {
                       : '暂无出货记录'}
                   </div>
                 </div>
-                {/* 右侧：出货次数徽章 + 删除按钮 */}
-                <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                {/* 右侧：出货次数徽章 + 编辑 + 删除按钮 */}
+                <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}>
                   <div style={{
                     background: planTasks.length > 0 ? '#2B2A2E' : 'rgba(103,93,83,0.08)',
                     color: planTasks.length > 0 ? '#FBF7EC' : 'var(--text-muted)',
@@ -240,16 +270,31 @@ export default function MyCustomPlans({ goBack }) {
                   }}>
                     {planTasks.length} 次
                   </div>
-                  <button
-                    onClick={() => setDeletingPlan({ plan, taskCount: planTasks.length })}
-                    style={{
-                      padding: '3px 9px', borderRadius: 8,
-                      border: 'none', background: 'rgba(232,69,60,0.10)',
-                      color: '#E8453C', fontSize: 11, fontWeight: 700,
-                      cursor: 'pointer', flexShrink: 0,
-                      fontFamily: 'var(--font-body)',
-                    }}
-                  >删除方案</button>
+                  <div style={{ display: 'flex', gap: 5 }}>
+                    {/* 编辑按钮 */}
+                    <button
+                      onClick={() => navigate?.('planEditor', { userPlanId: plan.id })}
+                      style={{
+                        padding: '3px 9px', borderRadius: 8,
+                        border: '1px solid rgba(91,156,246,0.3)',
+                        background: 'rgba(91,156,246,0.08)',
+                        color: '#5B9CF6', fontSize: 11, fontWeight: 700,
+                        cursor: 'pointer', flexShrink: 0,
+                        fontFamily: 'var(--font-body)',
+                      }}
+                    >✏️ 编辑</button>
+                    {/* 删除按钮 */}
+                    <button
+                      onClick={() => setDeletingPlan({ plan, taskCount: planTasks.length })}
+                      style={{
+                        padding: '3px 9px', borderRadius: 8,
+                        border: 'none', background: 'rgba(232,69,60,0.10)',
+                        color: '#E8453C', fontSize: 11, fontWeight: 700,
+                        cursor: 'pointer', flexShrink: 0,
+                        fontFamily: 'var(--font-body)',
+                      }}
+                    >删除</button>
+                  </div>
                 </div>
               </div>
 
@@ -344,6 +389,7 @@ export default function MyCustomPlans({ goBack }) {
           ))}
         </div>
       )}
+
     </div>
   );
 }

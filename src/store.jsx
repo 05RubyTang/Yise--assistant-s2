@@ -1,10 +1,11 @@
 import { createContext, useContext, useReducer, useEffect, useMemo, useRef, useState } from 'react';
-import { ALL_SHINIES, classifyPool, computePoolCounts, PLANS, resolveShinyKey, FRUIT_ATTR, getAttrByAnyName } from './data/plans';
+import { ALL_SHINIES, classifyPool, computePoolCounts, PLANS, resolveShinyKey, FRUIT_ATTR, getAttrByAnyName, getPlanFruitsArray } from './data/plans';
 import { DEFAULT_SEASON } from './data/seasons';
 import { supabase } from './supabase';
 
 const STORAGE_KEY = 'roco-shiny-helper';
 const USERNAME_KEY = 'lk_username';
+const DIRTY_KEY = 'roco-sync-dirty';
 
 // ─── 设备 ID：每台浏览器唯一，写入 localStorage 后永久保留 ──────────────────
 // 仅用于追踪数据来源设备，不影响任何业务逻辑
@@ -1294,6 +1295,8 @@ export function StoreProvider({ children }) {
   const initDoneRef = useRef(false);
   // 待执行的登录模式：'normal'（找回/绑定，合并本地数据）| 'switch'（切换账号，不合并）
   const pendingAuthModeRef = useRef('normal');
+  // 检测到脏标记，待初始化完成后补传数据
+  const pendingDirtySync = useRef(false);
   // 绑定/登录成功后弹出的全局 Toast
   // { type: 'bind' | 'login' | 'switch' | 'offline' | 'syncError', email?: string } | null
   const [authToast, setAuthToast] = useState(null);
@@ -1360,6 +1363,15 @@ export function StoreProvider({ children }) {
         // overwriteUserMeta=false：普通启动，本地已有昵称时不覆盖（保留用户最近改的名）
         await hydrateFromCloud(uid, dispatch, getLocalState(), false);
         setSyncStatus('ready');
+
+        // 2.5. 检查脏标记：上次关闭页面时可能有未上传的数据
+        // 不在此处直接调用（此时 initialized 尚未置 true，doSyncNowRef 尚未注入）
+        // 通过 pendingDirtySync ref 传递信号，由持久化 effect 在初始化完成后触发补传
+        const wasDirty = localStorage.getItem(DIRTY_KEY) === 'true';
+        if (wasDirty) {
+          console.log('[Supabase] 检测到上次关闭时有未同步数据，将在初始化完成后补传');
+          pendingDirtySync.current = true;
+        }
 
         // 3. 上报本次活跃时间（不管用户有没有操作，打开 App 就算活跃）
         supabase.from('user_data').upsert({
@@ -1584,6 +1596,8 @@ export function StoreProvider({ children }) {
     // isFirstCall=true：首次调用（非重试），先置 pending 让 Profile 感知同步进行中
     function doUpsert(isFirstCall = false) {
       if (isFirstCall) setLastSyncResult({ status: 'pending', time: new Date() });
+      // 上传前同步写脏标记，确保页面关闭时数据未丢失可在下次启动时补传
+      localStorage.setItem(DIRTY_KEY, 'true');
       supabase
         .from('user_data')
         .upsert({
@@ -1593,8 +1607,9 @@ export function StoreProvider({ children }) {
         }, { onConflict: 'user_id' })
         .then(({ error }) => {
           if (!error) {
-            // 成功：清除重试状态，更新最近同步结果
+            // 成功：清除重试状态、脏标记，更新最近同步结果
             syncRetryCountRef.current = 0;
+            localStorage.removeItem(DIRTY_KEY);
             setLastSyncResult({ status: 'success', time: new Date() });
             return;
           }
@@ -1617,6 +1632,15 @@ export function StoreProvider({ children }) {
 
     // 把 doUpsert 暴露给 visibilitychange 监听器，以便页面切后台时能主动触发
     doSyncNowRef.current = doUpsert;
+
+    // 检查启动时的脏数据补传信号（init() 检测到脏标记时设置）
+    // 此时 initialized=true 且 doSyncNowRef 已注入，可以安全触发补传
+    if (pendingDirtySync.current) {
+      pendingDirtySync.current = false;
+      console.log('[Supabase] 初始化完成，执行脏数据补传');
+      doUpsert(true);
+      return;
+    }
 
     doUpsert(true); // 首次调用，置 pending
 

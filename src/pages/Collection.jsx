@@ -147,7 +147,7 @@ function SpiritImg({ name, size = 60 }) {
 }
 
 // ─── 攻略卡（升级版：区分属性池/单刷池）──────────────────────────────────────
-function PlanInfo({ plan }) {
+function PlanInfo({ plan, currentSeason }) {
   const relatedForms = SPECIAL_FORMS.filter(f => f.planIds.includes(plan.id));
   const isSeasonPlan = !!plan.season;
   const isNoShiny = !!plan.noShiny;
@@ -155,10 +155,18 @@ function PlanInfo({ plan }) {
   // 判断是否为单刷池（无 fruitB）还是属性池（有 fruitB）
   const isSingleFruit = !plan.fruitB;
 
-  // = 右侧展示的精灵：noShiny 方案用 poolShinies，普通方案用 shinies
-  const visibleShinies = isNoShiny
+  // 根据当前赛季过滤精灵列表
+  const filterShiniesBySeason = (shinies) => {
+    if (!shinies || !currentSeason) return shinies || [];
+    const seasonSpirits = getSpiritsBySeason(currentSeason);
+    return shinies.filter(name => seasonSpirits.all.includes(name));
+  };
+
+  // = 右侧展示的精灵：noShiny 方案用 poolShinies，普通方案用 shinies（赛季过滤）
+  const rawShinies = isNoShiny
     ? (plan.poolShinies || [])
     : (plan.shinies || []);
+  const visibleShinies = filterShiniesBySeason(rawShinies);
 
   // 标签文字与颜色
   const poolLabel = isSeasonPlan
@@ -209,7 +217,7 @@ function PlanInfo({ plan }) {
         {/* 同池精灵文字提示（非赛季、非单刷、非积累属系池方案）*/}
         {!isSeasonPlan && !plan.singleSpirit && !isNoShiny && visibleShinies.length > 0 && (
           <span style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.4 }}>
-            同池：{plan.shinies.join('、')}
+            同池：{visibleShinies.join('、')}
           </span>
         )}
       </div>
@@ -228,7 +236,7 @@ function PlanInfo({ plan }) {
           {visibleShinies.length > 0
             ? visibleShinies.map(n => <SpiritImg key={n} name={n} size={56} />)
             : <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                {isNoShiny ? '积累属系池权重' : (plan.shinies?.join('、') || '—')}
+                {isNoShiny ? '积累属系池权重' : (visibleShinies?.join('、') || '—')}
               </span>
           }
         </div>
@@ -721,7 +729,7 @@ export default function Collection() {
                 selectedPlans.length > 0
                   ? [...selectedPlans]
                       .sort((a, b) => (b.noShiny ? 1 : 0) - (a.noShiny ? 1 : 0))
-                      .map(plan => <PlanInfo key={plan.id} plan={plan} />)
+                      .map(plan => <PlanInfo key={plan.id} plan={plan} currentSeason={currentSeason} />)
                   : <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: 12 }}>暂无攻略数据</div>
               )}
 

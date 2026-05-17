@@ -23,6 +23,26 @@ const BASE_IDS = new Set([
   'water', 'cute', 'normal', 'poison',  // S2 新增普通系、毒系
 ]);
 
+// ─── 属性 ID → 中文属性名映射（用于三池进度标签展示） ─────────────────────────
+export const ATTR_LABEL = {
+  fire:        '火系',
+  ice:         '冰系',
+  electric:    '电系',
+  phantom:     '幻系',
+  grass:       '草系',
+  evil:        '恶系',
+  ghost:       '幽系',
+  mech:        '机械系',
+  light:       '光系',
+  light_fluffy:'光系',
+  water:       '水系',
+  cute:        '萌系',
+  normal:      '普通系',
+  poison:      '毒系',
+  wing:        '翼系',
+  dragon:      '龙系',
+};
+
 // ─── 果实名 → 属系 ID 映射 ─────────────────────────────────────────────────
 export const FRUIT_ATTR = {
   '治愈兔果实':    'fire',

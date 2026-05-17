@@ -323,7 +323,7 @@ export default function Checklist({ planId, basePlanId, navigate, goBack }) {
         {plan.season && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 4 }}>
 
-            {/* 解锁条件 */}
+            {/* 解锁条件：fruitA（所有方案都有） */}
             <div style={{
               display: 'flex', alignItems: 'center', gap: 10,
               padding: '8px 10px', borderRadius: 8,
@@ -335,6 +335,21 @@ export default function Checklist({ planId, basePlanId, navigate, goBack }) {
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>{plan.unlockA}</div>
               </div>
             </div>
+
+            {/* 解锁条件：fruitB（混刷方案才有） */}
+            {plan.fruitB && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '8px 10px', borderRadius: 8,
+                background: 'var(--card-inner)',
+              }}>
+                <FruitTag name={plan.fruitB} size={38} showName={false} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 2 }}>{plan.fruitB}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>{plan.unlockB}</div>
+                </div>
+              </div>
+            )}
 
             {/* 推荐庇护所 */}
             {plan.sanctuary && (

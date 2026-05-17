@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../store';
-import { PLANS, classifyResultType, getPlanAttrId, computeFamilyPool, resolvePlanIconImg } from '../data/plans';
+import { PLANS, classifyResultType, getPlanAttrId, computeFamilyPool, resolvePlanIconImg, ATTR_LABEL } from '../data/plans';
 import SpiritAvatar from '../components/SpiritAvatar';
 import PlanIcon from '../components/PlanIcon';
 import { FruitLine } from '../components/FruitTag';
@@ -1041,7 +1041,7 @@ export default function Recorder({ planId, navigate }) {
               {attrId && (
                 <MiniPoolRow
                   dotColor={plan.color || '#E8A020'}
-                  label={`${plan.type || '系别'}池`}
+                  label={`${ATTR_LABEL[attrId] || attrId}池`}
                   count={attrPoolCount}
                   limit={ATTR_LIMIT}
                 />

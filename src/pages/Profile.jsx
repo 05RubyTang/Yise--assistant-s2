@@ -8,7 +8,7 @@ const getModalRoot = () => document.getElementById('modal-root') || document.bod
 import PlanIcon from '../components/PlanIcon';
 import SpiritAvatar from '../components/SpiritAvatar';
 import ShieldDots from '../components/ShieldDots';
-import { PLANS, ALL_SHINIES, inferPoolType, POOL_TYPE_CONFIG, getBallBySpirit, getBallByPlan, getAttrIdBySpirit, getPlanAttrId, computeFamilyPool } from '../data/plans';
+import { PLANS, ALL_SHINIES, inferPoolType, POOL_TYPE_CONFIG, getBallBySpirit, getBallByPlan, getAttrIdBySpirit, getPlanAttrId, computeFamilyPool, ATTR_LABEL } from '../data/plans';
 import { SEASONS } from '../data/seasons';
 
 // 模块加载时计算一次，每次 Vite 重新构建值变化 → 强制浏览器放弃旧缓存
@@ -1741,7 +1741,7 @@ export default function Profile({ navigate, initialDetailTaskId = null }) {
                       <PoolRow
                         key={attrId}
                         icon={plan?.iconImg || null}
-                        label={`${plan?.type || attrId} 系别`}
+                        label={`${ATTR_LABEL[attrId] || attrId} 系别`}
                         color={plan?.color || '#E8A020'}
                         count={count}
                         limit={POOL_LIMIT.attr}

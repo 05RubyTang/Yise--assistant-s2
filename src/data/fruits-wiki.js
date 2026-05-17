@@ -148,22 +148,53 @@ export const FRUITS_WIKI_IMG = {
   "小电企鹅果实": "https://patchwiki.biligame.com/images/rocom/e/eb/2ko1xdzesjhz4kd02yein10nyr7szfj.png",
   "鸭吉吉果实（起来鸭）": "https://patchwiki.biligame.com/images/rocom/0/0a/7nah7p7y7sk0ajmphsefzucj5dksaj0.png",
   "火红尾果实": "https://patchwiki.biligame.com/images/rocom/3/33/2nendig3j5p6cgmbpolnggo2bg1wmyz.png",
-  // 以下果实 bwiki 无独立页面，按进化链/同族共用关系对应正确果实图
-  "火焰猿果实":   "https://patchwiki.biligame.com/images/rocom/c/c6/mqkzqm1sqkemx7y6mnqvlzufmrzafgh.png", // 与可爱猿果实相同
-  "尖嘴狐仙果实": "https://patchwiki.biligame.com/images/rocom/7/7f/pa3zm1znhxejbmvskbjhojmsnhad9pl.png", // 与灵狐果实相同
-  // 波多西/蹦蹦花 bwiki 无页面，暂用通用果实道具图标
-  "波多西果实":   "https://patchwiki.biligame.com/images/rocom/f/fb/dd4np19ke066xpmv89ygh8plkpr2i2f.png",
-  "蹦蹦花果实":   "https://patchwiki.biligame.com/images/rocom/f/fb/dd4np19ke066xpmv89ygh8plkpr2i2f.png",
-  // 独角兽果实 = 小独角兽果实（同一道具图标）
-  "独角兽果实":   "https://patchwiki.biligame.com/images/rocom/f/fb/dd4np19ke066xpmv89ygh8plkpr2i2f.png",
-  "小独角兽果实": "https://patchwiki.biligame.com/images/rocom/f/fb/dd4np19ke066xpmv89ygh8plkpr2i2f.png",
-  // 疾光千兽 / 绒仙子 wiki 无独立果实图（属于战令/进化形态）→ 用通用果实道具图标兜底
-  "疾光千兽果实": "https://patchwiki.biligame.com/images/rocom/f/fb/dd4np19ke066xpmv89ygh8plkpr2i2f.png",
-  "绒仙子果实":   "https://patchwiki.biligame.com/images/rocom/4/4d/ki369linoroontjldq0l64s8dfehl43.png", // 与绒绒果实相同
-  // 注：哭哭菇果实/小夜果实/绒绒果实 已在上方有正确条目，此处删除重复键
-  // 同家族共用果实图标（疾光千兽=犀角鸟同家族；绒仙子=绒绒同家族）
-  "疾光千兽果实": "https://patchwiki.biligame.com/images/rocom/b/ba/0odp3a4u6lcr4iq692dewhef6oilatp.png", // 与犀角鸟果实相同
-  "绒仙子果实":   "https://patchwiki.biligame.com/images/rocom/4/4d/ki369linoroontjldq0l64s8dfehl43.png", // 与绒绒果实相同
+  // ─── 以下果实 bwiki 无独立页面，按进化链/同族共用关系对应果实图 ───────────
+
+  // 火系
+  "火焰猿果实":   "https://patchwiki.biligame.com/images/rocom/c/c6/mqkzqm1sqkemx7y6mnqvlzufmrzafgh.png", // 同家族：可爱猿果实
+  "尖嘴狐仙果实": "https://patchwiki.biligame.com/images/rocom/7/7f/pa3zm1znhxejbmvskbjhojmsnhad9pl.png", // 同家族：灵狐果实
+
+  // 翼系（锤头系同家族）
+  "锤头鹤果实":   "https://patchwiki.biligame.com/images/rocom/5/50/gt62wb7ozhzraaf1dcmt2c3dxgtqcy9.png", // 同家族：锤头鹳果实
+
+  // 草系
+  "奇丽花果实":   "https://patchwiki.biligame.com/images/rocom/9/99/c3dihkk998rj261t9pzm8cq7voaoiin.png", // 同家族：奇丽草果实
+  "蹦跳花果实":   "https://patchwiki.biligame.com/images/rocom/6/6e/a0ysaz4or3jvrzc7r0jqr3hgjwjvmmv.png", // 同家族：蹦蹦种子果实
+  "蹦蹦花果实":   "https://patchwiki.biligame.com/images/rocom/6/6e/a0ysaz4or3jvrzc7r0jqr3hgjwjvmmv.png", // 同家族：蹦蹦种子果实
+
+  // 幽系
+  "盖武士果实":   "https://patchwiki.biligame.com/images/rocom/5/52/dsje1i0kfuuz92q4nw0ilunsvgarad2.png", // 同家族：圣剑侍从果实
+  "梦悠悠果实":   "https://patchwiki.biligame.com/images/rocom/5/53/7i0y8bp82scepuqg8kr2dlcskix3bzl.png", // 同家族：梦游果实
+
+  // 机械系
+  "波多西果实":   "https://patchwiki.biligame.com/images/rocom/1/17/7q61jax67vhj88gsp6z9c0dg0d5pjjf.png", // 同家族：绿洲象果实（小鼓象进化链）
+  "圣剑-X果实":   "https://patchwiki.biligame.com/images/rocom/5/52/dsje1i0kfuuz92q4nw0ilunsvgarad2.png", // 同家族：圣剑侍从果实
+
+  // 火系混刷
+  "红绒十字果实": "https://patchwiki.biligame.com/images/rocom/f/f0/gz0guoz8q2sfbvhk2b8m56xg6wgv52q.png", // 同家族：治愈兔果实
+
+  // 水系
+  "彩蝶鲨果实":   "https://patchwiki.biligame.com/images/rocom/6/65/hydlfshvlv7pp7drmrd59b8rdlxavk1.png", // 同家族：风铃鲨果实
+
+  // 恶系
+  "乌拉怪果实":   "https://patchwiki.biligame.com/images/rocom/9/92/71uio6chmmg26u55xgt9nv7c8qnq88b.png", // 同家族：小箱怪果实
+
+  // 电系
+  "星光狮果实":   "https://patchwiki.biligame.com/images/rocom/d/d4/e17ujbzu3pgqatfkaezvy2brkwh4s6w.png", // 同家族：小狮鹫果实
+  "酷拉果实":     "https://patchwiki.biligame.com/images/rocom/1/19/hn4yei5669riyqmnup3esottw37n89p.png", // 同家族：拉特果实
+
+  // 幻系
+  "粉耳星兔果实": "https://patchwiki.biligame.com/images/rocom/0/00/pwxj8r4qxyc2l8388d0ab32orl755kx.png", // 同家族：粉粉星果实
+
+  // 普通系
+  "音碟吼果实":   "https://patchwiki.biligame.com/images/rocom/d/d8/ngi3dgaw7l81vas6aejm9rg3kjz7lj0.png", // 同家族：逗逗果实
+
+  // 独角兽系
+  "独角兽果实":   "https://patchwiki.biligame.com/images/rocom/4/4e/jzb1butqad19cd2grife4yzab1el3l8.png", // 同：小独角兽果实
+
+  // 疾光千兽 = 犀角鸟同家族；绒仙子 = 绒绒同家族
+  "疾光千兽果实": "https://patchwiki.biligame.com/images/rocom/b/ba/0odp3a4u6lcr4iq692dewhef6oilatp.png", // 同家族：犀角鸟果实
+  "绒仙子果实":   "https://patchwiki.biligame.com/images/rocom/4/4d/ki369linoroontjldq0l64s8dfehl43.png", // 同家族：绒绒果实
 };
 
 /**

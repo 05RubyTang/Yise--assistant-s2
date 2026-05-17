@@ -7,7 +7,7 @@ const base = import.meta.env.BASE_URL;
 // 色块内精灵图（本地有文件时优先本地，否则直接用 wiki CDN）
 function DotSpiritImg({ name }) {
   const hasLocal = LOCAL_SPIRIT_FILES.has(name);
-  const localSrc = hasLocal ? `${base}spirits/${encodeURIComponent(name)}.png` : null;
+  const localSrc = hasLocal ? `${base}spirits/${encodeURIComponent(name)}.webp` : null;
   const wikiSrc = getWikiSpiritImg(name);
   const [src, setSrc] = useState(localSrc || wikiSrc || '');
   const [triedWiki, setTriedWiki] = useState(!hasLocal);

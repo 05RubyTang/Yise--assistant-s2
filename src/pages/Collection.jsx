@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../store';
-import { PLANS, ATTR_SHINIES, SEASON_SHINIES, findPlansForSpirit, SPECIAL_FORMS, resolveShinyKey, S1_PLANS, S2_PLANS } from '../data/plans';
+import { PLANS, ATTR_SHINIES, SEASON_SHINIES, findPlansForSpirit, SPECIAL_FORMS, resolveShinyKey, S1_PLANS, S2_PLANS, SPIRIT_ATTR1, SPIRIT_ATTR2 } from '../data/plans';
 import SpiritAvatar from '../components/SpiritAvatar';
 import PlanIcon from '../components/PlanIcon';
 import { getWikiSpiritImg } from '../data/spirits-wiki';
@@ -13,7 +13,38 @@ const base = import.meta.env.BASE_URL;
 // 精灵名 → 本地图片文件名映射
 const SPIRIT_IMG_FILE = { '柴渣虫': '燃薪虫' };
 
+// 属性 ID → webp 图标路径（运行时拼 BASE_URL 前缀）
+const ATTR_ICON_FILE = {
+  fire:     'attrs/fire.webp',
+  ice:      'attrs/ice.webp',
+  electric: 'attrs/electric.webp',
+  phantom:  'attrs/phantom.webp',
+  grass:    'attrs/grass.webp',
+  evil:     'attrs/evil.webp',
+  ghost:    'attrs/ghost.webp',
+  mech:     'attrs/mech.webp',
+  light:    'attrs/light.webp',
+  water:    'attrs/water.webp',
+  cute:     'attrs/cute.webp',
+  normal:   'attrs/normal.webp',
+  poison:   'attrs/poison.webp',
+  wing:     'attrs/wing.webp',
+  dragon:   'attrs/dragon.webp',
+  ground:   'attrs/ground.webp',
+};
+
+/** 返回精灵属性图标路径数组，按属性1、属性2顺序，最多2个 */
+function getSpiritAttrIcons(name) {
+  const a1 = SPIRIT_ATTR1[name];
+  const a2 = SPIRIT_ATTR2[name];
+  const result = [];
+  if (a1 && ATTR_ICON_FILE[a1]) result.push({ id: a1, file: ATTR_ICON_FILE[a1] });
+  if (a2 && ATTR_ICON_FILE[a2]) result.push({ id: a2, file: ATTR_ICON_FILE[a2] });
+  return result;
+}
+
 // S2 战令精灵列表
+const S1_BATTLE_PASS_SPIRITS = ['疾光千兽', '绒仙子'];
 const S2_BATTLE_PASS_SPIRITS = ['雪怪', '爆焰喷喷'];
 
 // 获取指定赛季的精灵列表
@@ -21,7 +52,7 @@ function getSpiritsBySeason(season) {
   const seasonPlans = season === 'S1' ? S1_PLANS : S2_PLANS;
   const seasonShinies = [];
   const attrShinies = [];
-  const battlePassShinies = season === 'S2' ? S2_BATTLE_PASS_SPIRITS : [];
+  const battlePassShinies = season === 'S2' ? S2_BATTLE_PASS_SPIRITS : S1_BATTLE_PASS_SPIRITS;
 
   seasonPlans.forEach(plan => {
     if (plan.shinies && plan.shinies.length > 0) {
@@ -80,29 +111,44 @@ function getSpiritRecords(name, state) {
 // 支持 wiki 兜底的果实图卡
 function FruitImg({ name, size = 60 }) {
   const hasLocal = LOCAL_FRUIT_FILES.has(name);
-  const localSrc = hasLocal ? `${base}fruits/${encodeURIComponent(name)}.png?v=3` : null;
   const rawWikiSrc = getWikiFruitImg(name);
-  // v=3 用于破除浏览器对旧 wiki CDN URL 的缓存（果实图标 URL 有过变更）
   const wikiSrc = rawWikiSrc ? `${rawWikiSrc}?v=3` : null;
-  const [src, setSrc] = useState(localSrc || wikiSrc || '');
-  const [triedWiki, setTriedWiki] = useState(!hasLocal);
+  const localSrc = (!wikiSrc && hasLocal) ? `${base}fruits/${encodeURIComponent(name)}.webp?v=3` : null;
 
-  const handleError = (e) => {
+  // 既无 wiki 映射也无本地文件 → 直接显示占位，不尝试加载
+  const noImage = !wikiSrc && !localSrc;
+
+  const [src, setSrc] = useState(wikiSrc || localSrc || '');
+  const [triedWiki, setTriedWiki] = useState(!!wikiSrc);
+  const [failed, setFailed] = useState(false);
+
+  const handleError = () => {
     if (!triedWiki && wikiSrc) { setTriedWiki(true); setSrc(wikiSrc); }
-    else { e.target.style.opacity = 0.15; }
+    else { setFailed(true); }
   };
+
+  const showPlaceholder = noImage || failed;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flexShrink: 0 }}>
       <div style={{
         width: size, height: size, borderRadius: 10,
-        background: '#F7F7F7', border: '1.5px solid rgba(103,93,83,0.14)',
+        background: showPlaceholder ? 'rgba(103,93,83,0.06)' : '#F7F7F7',
+        border: showPlaceholder ? '1.5px dashed rgba(103,93,83,0.25)' : '1.5px solid rgba(103,93,83,0.14)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
       }}>
-        <img src={src} alt={name} loading="lazy"
-          style={{ width: size - 8, height: size - 8, objectFit: 'contain' }}
-          onError={handleError} />
+        {showPlaceholder ? (
+          <span style={{
+            fontSize: 8, color: 'var(--text-muted)', fontWeight: 700,
+            textAlign: 'center', lineHeight: 1.6, padding: '0 4px',
+            whiteSpace: 'pre-line',
+          }}>{'等待官方\n更新'}</span>
+        ) : (
+          <img src={src} alt={name} loading="lazy"
+            style={{ width: size - 8, height: size - 8, objectFit: 'contain' }}
+            onError={handleError} />
+        )}
       </div>
       <span style={{
         fontSize: 9, color: 'var(--text-muted)', fontWeight: 600,
@@ -117,7 +163,7 @@ function FruitImg({ name, size = 60 }) {
 function SpiritImg({ name, size = 60 }) {
   const fileName = SPIRIT_IMG_FILE[name] || name;
   const hasLocal = LOCAL_SPIRIT_FILES.has(fileName);
-  const localSrc = hasLocal ? `${base}spirits/${encodeURIComponent(fileName)}.png?v=2` : null;
+  const localSrc = hasLocal ? `${base}spirits/${encodeURIComponent(fileName)}.webp?v=2` : null;
   const wikiSrc = getWikiSpiritImg(name);
   const [src, setSrc] = useState(localSrc || wikiSrc || '');
   const [triedWiki, setTriedWiki] = useState(!hasLocal);
@@ -396,11 +442,14 @@ export default function Collection() {
   // 统计
   const totalCount  = ALL_SPIRITS.length;
   const obtainedCount = ALL_SPIRITS.filter(n => state.spirits[n]?.obtained).length;
-  const battlePassObtained = BATTLE_PASS_SHINIES.filter(n => state.battlePassSpirits?.[n]?.obtained).length;
   const pct = totalCount > 0 ? Math.round((obtainedCount / totalCount) * 100) : 0;
 
-  const attrObtained    = ATTR_SHINIES.filter(n => state.spirits[n]?.obtained).length;
   const seasonObtained  = SEASON_SHINIES.filter(n => state.spirits[n]?.obtained).length;
+  const battlePassObtainedCount = BATTLE_PASS_SHINIES.filter(n => !!state.battlePassSpirits?.[n]?.obtained).length;
+
+  // 普通异色 = 全部 - 奇遇 - 战令
+  const NORMAL_SHINIES = ALL_SPIRITS.filter(n => !SEASON_SHINIES.includes(n) && !BATTLE_PASS_SHINIES.includes(n));
+  const normalObtained = NORMAL_SHINIES.filter(n => !!state.spirits[n]?.obtained).length;
 
   // 按筛选条件过滤
   const visibleSpirits = ALL_SPIRITS.filter(name => {
@@ -414,7 +463,10 @@ export default function Collection() {
     return true;
   });
 
-  const selectedPlans   = selected ? findPlansForSpirit(selected) : [];
+  // 弹窗方案只展示当前赛季，避免 S1 的积累方案（spiritA 匹配）混入 S2 图鉴
+  const selectedPlans = selected
+    ? findPlansForSpirit(selected).filter(p => p.season === currentSeason)
+    : [];
   const selectedRecords = selected ? getSpiritRecords(selected, state) : [];
   const selectedTag     = selected ? getSpiritTag(selected, currentSeason) : null;
   const isBattlePassSpirit = selected && BATTLE_PASS_SHINIES.includes(selected);
@@ -462,7 +514,17 @@ export default function Collection() {
           }} />
         </div>
         {/* 分类小计 */}
-        <div style={{ display: 'flex', gap: 12 }}>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span style={{
+              fontSize: 8, fontWeight: 800, padding: '1px 5px', borderRadius: 20,
+              background: 'rgba(103,170,92,0.12)', color: '#4A8C40',
+              border: '1px solid rgba(103,170,92,0.3)',
+            }}>普通异色</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>
+              {normalObtained}/{NORMAL_SHINIES.length}
+            </span>
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
             <span style={{
               fontSize: 8, fontWeight: 800, padding: '1px 5px', borderRadius: 20,
@@ -473,16 +535,18 @@ export default function Collection() {
               {seasonObtained}/{SEASON_SHINIES.length}
             </span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <span style={{
-              fontSize: 8, fontWeight: 800, padding: '1px 5px', borderRadius: 20,
-              background: 'rgba(103,170,92,0.12)', color: '#4A8C40',
-              border: '1px solid rgba(103,170,92,0.3)',
-            }}>普通异色</span>
-            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>
-              {attrObtained}/{ATTR_SHINIES.length}
-            </span>
-          </div>
+          {BATTLE_PASS_SHINIES.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{
+                fontSize: 8, fontWeight: 800, padding: '1px 5px', borderRadius: 20,
+                background: 'rgba(255,193,7,0.15)', color: '#F57C00',
+                border: '1px solid rgba(255,193,7,0.4)',
+              }}>战令异色</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>
+                {battlePassObtainedCount}/{BATTLE_PASS_SHINIES.length}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -572,15 +636,32 @@ export default function Collection() {
                   )}
                 </div>
 
-                {/* 精灵名 */}
-                <div className="font-spirit" style={{
-                  fontSize: 10, fontWeight: 800,
-                  color: isObtained ? 'var(--text)' : 'var(--text-muted)',
-                  textAlign: 'center', lineHeight: 1.2,
-                  width: '100%', overflow: 'hidden',
-                  textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  padding: '0 2px',
-                }}>{name}</div>
+                {/* 精灵名 + 属性 emoji */}
+                <div style={{ width: '100%', textAlign: 'center' }}>
+                  <div className="font-spirit" style={{
+                    fontSize: 10, fontWeight: 800,
+                    color: isObtained ? 'var(--text)' : 'var(--text-muted)',
+                    lineHeight: 1.2,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    padding: '0 2px',
+                  }}>{name}</div>
+                  {/* 属性图标行 */}
+                  {(() => {
+                    const icons = getSpiritAttrIcons(name);
+                    return icons.length > 0 ? (
+                      <div style={{ display: 'flex', justifyContent: 'center', gap: 2, marginTop: 2 }}>
+                        {icons.map(({ id, file }) => (
+                          <img
+                            key={id}
+                            src={`${base}${file}`}
+                            alt={id}
+                            style={{ width: 12, height: 12, objectFit: 'contain' }}
+                          />
+                        ))}
+                      </div>
+                    ) : null;
+                  })()}
+                </div>
 
                 {/* 类型小 tag */}
                 <span style={{

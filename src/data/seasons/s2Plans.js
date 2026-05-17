@@ -324,25 +324,30 @@ export const S2_PLANS = [
     sanctuaryTip: '待游戏更新后补充',
   },
 
-  // ─── S2 属性方案（4个）─────────────────────────────────────
+  // ─── S2 属性方案（混刷方案）─────────────────────────────────────
+
+  // 1. 水系混刷：加油海葵（深蓝鲸果 + 彩蝶鲨果，100% 出加油海葵）
   {
-    id: 'water',
+    id: 's2_attr_water_mix',
     season: 'S2',
     category: 'attr',
-    type: '水系',
+    type: '水系混刷',
     icon: '💧',
     iconImg: `${base}attrs/water.png`,
     color: '#42A5F5',
-    fruitA: '加油海葵果实',
-    fruitB: null,
+    fruitA: '深蓝鲸果实',
+    fruitB: '彩蝶鲨果实',
     spiritA: '加油海葵',
     spiritB: null,
     shinies: ['加油海葵'],
-    unlockA: 'S2 赛季任务，捕捉 2 只污染血脉的加油海葵可获得',
-    unlockB: null,
+    unlockA: '待游戏更新后补充',
+    unlockB: '待游戏更新后补充',
+    note: '水系混刷，100% 出加油海葵异色',
   },
+
+  // 2. 萌系：菊花梨（菊花梨果实，单果实）
   {
-    id: 'cute',
+    id: 's2_attr_cute',
     season: 'S2',
     category: 'attr',
     type: '萌系',
@@ -357,8 +362,10 @@ export const S2_PLANS = [
     unlockA: '待游戏更新后补充',
     unlockB: null,
   },
+
+  // 3. 普通系：公平鸽 + 音碟吼
   {
-    id: 'normal',
+    id: 's2_attr_normal',
     season: 'S2',
     category: 'attr',
     type: '普通系',
@@ -373,8 +380,10 @@ export const S2_PLANS = [
     unlockA: '待游戏更新后补充',
     unlockB: 'S2 赛季任务，捕捉 2 只污染血脉的音碟吼可获得',
   },
+
+  // 4. 毒系：嘟嘟煲
   {
-    id: 'poison',
+    id: 's2_attr_poison',
     season: 'S2',
     category: 'attr',
     type: '毒系',
@@ -388,5 +397,181 @@ export const S2_PLANS = [
     shinies: ['嘟嘟煲', '烟花伯爵'],
     unlockA: '待游戏更新后补充',
     unlockB: null,
+  },
+
+  // 5. 恶系方案 A：恶魔狼果 + 乌拉怪果（小夜 / 小丑公爵，各约 1/2 概率）
+  {
+    id: 's2_attr_evil_night',
+    season: 'S2',
+    category: 'attr',
+    type: '恶系方案',
+    icon: '😈',
+    iconImg: `${base}attrs/evil.png`,
+    color: '#5D4037',
+    fruitA: '恶魔狼果实',
+    fruitB: '乌拉怪果实',
+    spiritA: '小夜',
+    spiritB: '小丑公爵',
+    shinies: ['小夜', '小丑公爵'],
+    unlockA: '待游戏更新后补充',
+    unlockB: '待游戏更新后补充',
+    note: '恶系混刷，小夜 / 小丑公爵各约 1/2 概率',
+  },
+
+  // 6. 混属系方案：恶魔狼果 + 月牙雪熊果（可刷除战令外所有 S2 异色）
+  // 注：恶魔狼/月牙雪熊是 S1 异色精灵，此处仅作为果实使用
+  {
+    id: 's2_attr_evil_bear_wolf',
+    season: 'S2',
+    category: 'attr',
+    type: '混属系方案',
+    icon: '🎲',
+    iconImg: `${base}attrs/normal.png`,
+    color: '#607D8B',
+    fruitA: '恶魔狼果实',
+    fruitB: '月牙雪熊果实',
+    spiritA: null,
+    spiritB: null,
+    shinies: [
+      '恶魔叮', '菊花梨', '公平鸽', '灵狐', '小夜', '小独角兽', '嘟嘟煲', '幽影树',
+      '小丑公爵', '小鼓象', '音碟吼', '烟花伯爵', '帅帅魔偶', '炫光迪迪', '加油海葵', '咕德帽帽',
+    ],
+    unlockA: '待游戏更新后补充',
+    unlockB: '待游戏更新后补充',
+    note: '混属系混刷，可随机检索除战令精灵（雪怪/爆焰喷喷）以外的所有 S2 异色，概率较低但覆盖面最广',
+  },
+
+  // 8. 翼系：恶魔叮（锤头鹤果单果，100% 检索恶魔叮）
+  {
+    id: 's2_attr_wing_demon_ding',
+    season: 'S2',
+    category: 'attr',
+    type: '翼系',
+    icon: '🦅',
+    iconImg: `${base}attrs/wing.png`,
+    color: '#7986CB',
+    fruitA: '锤头鹤果实',
+    fruitB: null,
+    spiritA: '恶魔叮',
+    spiritB: null,
+    shinies: ['恶魔叮'],
+    unlockA: '待游戏更新后补充',
+    unlockB: null,
+    note: '翼系，直刷锤头鹤果 100% 检索恶魔叮',
+  },
+
+  // 9. 草系混刷：幽影树（奇丽花果 + 蹦跳花果，60+60 星光）
+  {
+    id: 's2_attr_grass_shadow',
+    season: 'S2',
+    category: 'attr',
+    type: '草系混刷',
+    icon: '🌿',
+    iconImg: `${base}attrs/grass.png`,
+    color: '#388E3C',
+    fruitA: '奇丽花果实',
+    fruitB: '蹦跳花果实',
+    spiritA: '幽影树',
+    spiritB: null,
+    shinies: ['幽影树'],
+    unlockA: '待游戏更新后补充',
+    unlockB: '待游戏更新后补充',
+    note: '草系混刷',
+  },
+
+  // 10. 幽系混刷：咕德帽帽（盖武士果 + 梦悠悠果，60+60 星光，50% 出咕咕帽/幽影树）
+  {
+    id: 's2_attr_ghost_hat',
+    season: 'S2',
+    category: 'attr',
+    type: '幽系混刷',
+    icon: '👻',
+    iconImg: `${base}attrs/ghost.png`,
+    color: '#7E57C2',
+    fruitA: '盖武士果实',
+    fruitB: '梦悠悠果实',
+    spiritA: '咕德帽帽',
+    spiritB: '幽影树',
+    shinies: ['咕德帽帽', '幽影树'],
+    unlockA: '待游戏更新后补充',
+    unlockB: '待游戏更新后补充',
+    note: '幽系，50% 概率出咕德帽帽/幽影树异色',
+  },
+
+  // 11. 机械系混刷 A：小鼓象（波多西果 + 圣剑-X果，80+60，100% 出小鼓象）
+  // 注：烟花伯爵属性为火+毒，非机械系，不在此池产出
+  {
+    id: 's2_attr_mech_drum',
+    season: 'S2',
+    category: 'attr',
+    type: '机械系混刷（小鼓象）',
+    icon: '⚙️',
+    iconImg: `${base}attrs/mech.png`,
+    color: '#78909C',
+    fruitA: '波多西果实',
+    fruitB: '圣剑-X果实',
+    spiritA: '小鼓象',
+    spiritB: null,
+    shinies: ['小鼓象'],
+    unlockA: '待游戏更新后补充',
+    unlockB: '待游戏更新后补充',
+    note: '机械系，100% 出小鼓象异色',
+  },
+
+  // 12. 火系混刷 B：烟花伯爵（火焰猿果 + 红绒十字果，80+60，50% 出烟花伯爵/灵狐）
+  {
+    id: 's2_attr_fire_firework',
+    season: 'S2',
+    category: 'attr',
+    type: '火系混刷（烟花伯爵）',
+    icon: '🔥',
+    iconImg: `${base}attrs/fire.png`,
+    color: '#E8733A',
+    fruitA: '火焰猿果实',
+    fruitB: '红绒十字果实',
+    spiritA: '烟花伯爵',
+    spiritB: '灵狐',
+    shinies: ['烟花伯爵', '灵狐'],
+    unlockA: '待游戏更新后补充',
+    unlockB: '待游戏更新后补充',
+    note: '火系，50% 出烟花伯爵/灵狐异色',
+  },
+
+  // 13. 电系混刷：炫光迪迪（星光狮果 + 酷拉果，60+60，100% 出炫光迪迪）
+  {
+    id: 's2_attr_electric_dazzle',
+    season: 'S2',
+    category: 'attr',
+    type: '电系混刷',
+    icon: '⚡',
+    iconImg: `${base}attrs/electric.png`,
+    color: '#FDD835',
+    fruitA: '星光狮果实',
+    fruitB: '酷拉果实',
+    spiritA: '炫光迪迪',
+    spiritB: null,
+    shinies: ['炫光迪迪'],
+    unlockA: '待游戏更新后补充',
+    unlockB: '待游戏更新后补充',
+    note: '电系，100% 出炫光迪迪异色',
+  },
+
+  // 14. 幻系：帅帅魔偶（粉耳星兔果单果，80 星光，100% 出帅帅魔偶）
+  {
+    id: 's2_attr_phantom_puppet',
+    season: 'S2',
+    category: 'attr',
+    type: '幻系',
+    icon: '🔮',
+    iconImg: `${base}attrs/phantom.png`,
+    color: '#AB47BC',
+    fruitA: '粉耳星兔果实',
+    fruitB: null,
+    spiritA: '帅帅魔偶',
+    spiritB: null,
+    shinies: ['帅帅魔偶'],
+    unlockA: '待游戏更新后补充',
+    unlockB: null,
+    note: '100% 概率出帅帅魔偶异色',
   },
 ];

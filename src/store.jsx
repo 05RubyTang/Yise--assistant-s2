@@ -442,6 +442,24 @@ function reducer(state, action) {
         cac_ballsUsed = curSeg != null ? curSeg + cac_pauseTotal : (cac_pauseTotal > 0 ? cac_pauseTotal : null);
         nextBallStart = ballEnd ?? null;
       }
+      // 提前声明，completed 快照和 activeTask 过滤均需要
+      const resetBreaks = !!action.resetBreaks;
+      // 选择性清零：只移除出货池（action.resultType）的 breaks，另外两池进度保留。
+      // resetBreaks=true（用户手动选择「三池全清」）时清空全部。
+      const poolToClear = action.resultType; // 'family' | 'attr' | 'world'
+
+      // ── completedTask 快照的 shieldBreaks 存储策略 ──────────────────────────
+      // 两层设计：任务快照 vs 实时各池（computePoolCounts）
+      //   - COMPLETE_TASK（正常结束）：全量存储，无双计风险（activeTask 已移除）
+      //   - COMPLETE_AND_CONTINUE + resetBreaks=true（全清继续）：全量存储，activeTask 被清空无双计风险
+      //   - COMPLETE_AND_CONTINUE + resetBreaks=false（选择性清零继续）：
+      //       只存出货池（poolToClear）的 breaks，其余池 breaks 已继承到新 activeTask。
+      //       若全量存储，computePoolCounts 会对世界池/属性池 breaks 双计。
+      const completedShieldBreaks = resetBreaks
+        ? (task.shieldBreaks || [])          // 全清模式：快照完整保留（无继承，无双计）
+        : (task.shieldBreaks || []).filter(b => !b.pool || b.pool === poolToClear);
+                                              // 选择性清零：只保留出货池 breaks，其余已在新 activeTask
+
       const completed = {
         id: task.id,
         planId: task.planId,
@@ -450,11 +468,12 @@ function reducer(state, action) {
         resultType: action.resultType || (action.isPool ? 'pool' : 'offpool'),
         shieldBreakCount: task.shieldBreakCount,
         breakdowns,
-        shieldBreaks: task.shieldBreaks || [],
+        shieldBreaks: completedShieldBreaks,
         ballMode: task.ballMode || 'simple',
         ballsUsed: cac_ballsUsed,
         ...(cac_ballsUsedByType ? { ballsUsedByType: cac_ballsUsedByType } : {}),
         completedAt: new Date().toISOString(),
+        hasContinuation: true, // 此任务「继续刷」：computePoolCounts 跳过其 breaks 避免双计（双重保障）
       };
       const newSpirits = { ...state.spirits };
       // 图鉴点亮放宽：归一化到家族代表异色名
@@ -466,10 +485,6 @@ function reducer(state, action) {
           obtainedAt: new Date().toISOString(),
         };
       }
-      const resetBreaks = !!action.resetBreaks;
-      // 选择性清零：只移除出货池（action.resultType）的 breaks，另外两池进度保留。
-      // resetBreaks=true（用户手动选择「三池全清」）时清空全部。
-      const poolToClear = action.resultType; // 'family' | 'attr' | 'world'
       const nextShieldBreaks = resetBreaks
         ? []
         : task.shieldBreaks.filter(b => !b.pool || b.pool !== poolToClear);
@@ -1834,9 +1849,10 @@ export function StoreProvider({ children }) {
   ], [state.userPlanConfig]);
 
   // 统计 activeTasks 和 completedTasks 中未清零的池：属性池和世界池跨任务全局累积
+  // 按当前赛季过滤 completedTasks，避免 S1 历史保底进度污染 S2 显示
   const poolCounts = useMemo(() =>
-    computePoolCounts(state.activeTasks, state.completedTasks, allPlans),
-    [state.activeTasks, state.completedTasks, allPlans]
+    computePoolCounts(state.activeTasks, state.completedTasks, allPlans, state.currentSeason),
+    [state.activeTasks, state.completedTasks, allPlans, state.currentSeason]
   );
 
   return (

@@ -1,6 +1,8 @@
 import { useStore } from '../store';
 import { SEASON_LIST } from '../data/seasons';
 
+const base = import.meta.env.BASE_URL;
+
 /**
  * 赛季切换器组件
  * 用于在 S1「暗夜时光」和 S2「马戏团奇旅」之间切换
@@ -18,10 +20,6 @@ export default function SeasonSwitcher({ style }) {
     <div style={{
       display: 'flex',
       gap: 8,
-      padding: '8px 16px',
-      background: '#FAFAFA',
-      borderRadius: 12,
-      border: '1px solid rgba(103,93,83,0.1)',
       ...style,
     }}>
       {SEASON_LIST.map(season => {
@@ -68,9 +66,11 @@ export default function SeasonSwitcher({ style }) {
             }}
           >
             {/* 赛季图标 */}
-            <span style={{ fontSize: 16 }}>
-              {season.id === 'S1' ? '🌙' : '🎪'}
-            </span>
+            <img
+              src={season.id === 'S1' ? `${base}s1-icon.png` : `${base}s2-icon.png`}
+              alt={season.id}
+              style={{ width: 22, height: 22, objectFit: 'contain', flexShrink: 0 }}
+            />
 
             {/* 赛季标签 */}
             <span>{season.label}</span>

@@ -657,32 +657,6 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
                 })}
               </div>
             )}
-            {/* 新建自定义方案入口 */}
-            <div style={{ padding: userPlans.length > 0 ? '4px 16px 0' : '0 16px 0' }}>
-              <div
-                className="plan-card"
-                onClick={() => navigate('customChecklist')}
-                style={{
-                  borderColor: '#675D53', boxShadow: '0 2px 0 #675D53',
-                  padding: 0, overflow: 'hidden', background: '#FBF7EC', cursor: 'pointer',
-                }}
-              >
-                <div style={{ background: '#7E57C2', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{
-                    width: 26, height: 26, borderRadius: 8, flexShrink: 0,
-                    background: 'rgba(255,255,255,0.18)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14,
-                  }}>✏️</div>
-                  <span style={{ flex: 1, fontSize: 14, fontWeight: 900, fontFamily: 'var(--font-display)', color: '#fff', letterSpacing: 0.5 }}>
-                    新建自定义方案
-                  </span>
-                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', fontWeight: 600 }}>点击填写 →</span>
-                </div>
-                <div style={{ padding: '8px 14px 10px' }}>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6 }}>手动填写果实组合，适合使用非标准方案的情况</div>
-                </div>
-              </div>
-            </div>
           </>
         )}
       </div>
@@ -694,14 +668,9 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
     <>
     <div style={{ paddingBottom: 24 }}>
 
-      {/* ── 赛季切换器 ── */}
-      <div style={{ padding: '20px 16px 12px' }}>
-        <SeasonSwitcher />
-      </div>
-
-      {/* ── 顶部总览数据模块（含标题+说明） ── */}
+      {/* ── 顶部信息卡（标题 + 赛季切换） ── */}
       <div style={{
-        margin: '14px 16px 14px',
+        margin: '20px 16px 14px',
         background: 'var(--card)',
         border: '1.5px solid var(--card-border)',
         borderRadius: 'var(--radius-sm)',
@@ -734,24 +703,8 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
         </div>
         {/* 分隔线 */}
         <div style={{ height: 1, background: 'var(--divider)', margin: '0 0 10px' }} />
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 10 }}>整体进度</div>
-        <div style={{ display: 'flex', gap: 0 }}>
-          {/* 已完成 */}
-          <div style={{ flex: 1, textAlign: 'center', borderRight: '1px solid var(--divider)' }}>
-            <div style={{ lineHeight: 1.2 }}><span className="font-subtitle" style={{ fontSize: 20, fontWeight: 900, color: 'var(--success)' }}>{doneCount}</span></div>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, marginTop: 3 }}>已完成</div>
-          </div>
-          {/* 刷取中 */}
-          <div style={{ flex: 1, textAlign: 'center', borderRight: '1px solid var(--divider)' }}>
-            <div style={{ lineHeight: 1.2 }}><span className="font-subtitle" style={{ fontSize: 20, fontWeight: 900, color: '#C8830A' }}>{activeCount}</span></div>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, marginTop: 3 }}>刷取中</div>
-          </div>
-          {/* 待开始 */}
-          <div style={{ flex: 1, textAlign: 'center' }}>
-            <div style={{ lineHeight: 1.2 }}><span className="font-subtitle" style={{ fontSize: 20, fontWeight: 900, color: 'var(--text-light)' }}>{idleCount}</span></div>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, marginTop: 3 }}>待开始</div>
-          </div>
-        </div>
+        {/* 赛季切换器内嵌在卡片内 */}
+        <SeasonSwitcher />
       </div>
 
       {/* ── 筛选栏第一行：方案分类 ── */}
@@ -910,45 +863,18 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
               })}
             </div>
           )}
-          {/* 新建自定义方案入口 */}
-          {userPlans.length === 0 && filter === 'custom' && (
-            <div style={{ textAlign: 'center', padding: '16px 16px 8px', color: 'var(--text-muted)', fontSize: 13 }}>
-              还没有自定义方案，点击下方新建吧
-            </div>
-          )}
           {/* 果实筛选后无结果时提示 */}
           {userPlans.length > 0 && filteredUserPlans.length === 0 && (
             <div style={{ textAlign: 'center', padding: '12px 16px 4px', color: 'var(--text-muted)', fontSize: 12 }}>
               当前果实筛选下无符合条件的自定义方案
             </div>
           )}
-          <div style={{ padding: filteredUserPlans.length > 0 ? '4px 16px 0' : '0 16px 0' }}>
-            <div
-              className="plan-card"
-              onClick={() => navigate('customChecklist', { saveOnly: true })}
-              style={{
-                borderColor: '#675D53', boxShadow: '0 2px 0 #675D53',
-                padding: 0, overflow: 'hidden', background: '#FBF7EC', cursor: 'pointer',
-              }}
-            >
-              <div style={{ background: '#7E57C2', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{
-                  width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-                  background: 'rgba(255,255,255,0.18)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
-                }}>✏️</div>
-                <span style={{ flex: 1, fontSize: 15, fontWeight: 900, fontFamily: 'var(--font-display)', color: '#fff', letterSpacing: 0.5 }}>
-                  新建自定义方案
-                </span>
-                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', fontWeight: 600 }}>点击填写 →</span>
-              </div>
-              <div style={{ padding: '10px 14px 12px' }}>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.7 }}>
-                  手动填写果实组合，适合使用非标准方案的情况
-                </div>
-              </div>
+          {/* 无自定义方案时的提示 */}
+          {userPlans.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '16px 16px 8px', color: 'var(--text-muted)', fontSize: 12 }}>
+              还没有自定义方案，可前往「我的 → 自定义方案」新建
             </div>
-          </div>
+          )}
         </>
       )}
 

@@ -18,7 +18,7 @@ const SPIRIT_IMG_FILE = {
 export default function SpiritAvatar({ name, obtained, size = 48, showName = true, bare = false }) {
   const fileName = SPIRIT_IMG_FILE[name] || name;
   const hasLocal = LOCAL_SPIRIT_FILES.has(fileName);
-  const localSrc = hasLocal ? `${base}spirits/${encodeURIComponent(fileName)}.png` : null;
+  const localSrc = hasLocal ? `${base}spirits/${encodeURIComponent(fileName)}.webp` : null;
   const wikiSrc = getWikiSpiritImg(name);
 
   // 若本地有图就先用本地，否则直接用 wiki

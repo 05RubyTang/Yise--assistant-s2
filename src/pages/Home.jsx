@@ -1,6 +1,5 @@
 import { useStore } from '../store';
-import { PLANS, S1_PLANS, S2_PLANS, getPlanAttrId, classifyPool, computeFamilyPool, getPlanMainPool, resolvePlanIconImg } from '../data/plans';
-import { SEASONS } from '../data/seasons';
+import { PLANS, getPlanAttrId, classifyPool, computeFamilyPool, getPlanMainPool, resolvePlanIconImg } from '../data/plans';
 import ProgressBar from '../components/ProgressBar';
 import PlanIcon from '../components/PlanIcon';
 import SpiritAvatar from '../components/SpiritAvatar';
@@ -97,21 +96,6 @@ export default function Home({ navigate }) {
   const recentShinies = getRecentShinies(state);
   const hasRecentShinies = recentShinies.length > 0;
 
-  // ── 当前赛季收集进度统计 ─────────────────────────────────────────────────
-  const currentSeason = state.currentSeason || 'S2';
-  const seasonPlans = currentSeason === 'S1' ? S1_PLANS : S2_PLANS;
-  // 合并所有赛季方案的目标精灵（去重）
-  const seasonShinies = [...new Set(seasonPlans.flatMap(p => p.shinies || []))];
-  const seasonTotal = seasonShinies.length;
-  // 已获得：普通精灵 or 战令精灵
-  const seasonObtained = seasonShinies.filter(n =>
-    state.spirits?.[n]?.obtained || state.battlePassSpirits?.[n]?.obtained
-  ).length;
-  const seasonPct = seasonTotal > 0 ? Math.round((seasonObtained / seasonTotal) * 100) : 0;
-  const seasonCfg = SEASONS[currentSeason] || SEASONS.S2;
-  const isS2 = currentSeason === 'S2';
-  const seasonAccentColor = isS2 ? '#E8733A' : '#8B7355';
-
   return (
     <div style={{ paddingBottom: 16 }}>
       {/* 顶部 hero 区域：标题 + 小洛克装饰 */}
@@ -201,77 +185,6 @@ export default function Home({ navigate }) {
               {recentShinies.map(t => (
                 <RecentSpiritCard key={t.id} task={t} />
               ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── 当前赛季收集进度卡片 ─────────────────────────────────────────── */}
-      {seasonTotal > 0 && (
-        <div className="animate-in" style={{
-          margin: '0 16px 14px',
-          background: '#FBF7EC',
-          border: `1.5px solid ${isS2 ? 'rgba(232,115,58,0.35)' : 'rgba(139,115,85,0.3)'}`,
-          borderRadius: 14,
-          padding: '12px 14px',
-        }}>
-          {/* 标题行 */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 12 }}>{isS2 ? '🎪' : '🌙'}</span>
-              <span style={{
-                fontSize: 12, fontWeight: 900, color: '#2B2A2E',
-                fontFamily: 'var(--font-display)',
-              }}>
-                {seasonCfg.label} 收集进度
-              </span>
-            </div>
-            <span style={{
-              fontSize: 10, fontWeight: 800,
-              padding: '2px 8px', borderRadius: 20,
-              background: isS2 ? 'rgba(232,115,58,0.15)' : 'rgba(139,115,85,0.12)',
-              color: seasonAccentColor,
-              border: `1px solid ${isS2 ? 'rgba(232,115,58,0.35)' : 'rgba(139,115,85,0.3)'}`,
-            }}>
-              {seasonPct}%
-            </span>
-          </div>
-          {/* 进度条 */}
-          <div style={{
-            height: 7, borderRadius: 4,
-            background: 'rgba(103,93,83,0.12)',
-            overflow: 'hidden', marginBottom: 10,
-          }}>
-            <div style={{
-              height: '100%', borderRadius: 4,
-              width: `${seasonPct}%`,
-              background: isS2
-                ? 'linear-gradient(90deg, #E8733A, #F5A623)'
-                : 'linear-gradient(90deg, #8B7355, #A09070)',
-              transition: 'width 0.6s cubic-bezier(.4,0,.2,1)',
-            }} />
-          </div>
-          {/* 数字行 */}
-          <div style={{ display: 'flex', gap: 0 }}>
-            <div style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ fontSize: 18, fontWeight: 900, color: seasonAccentColor, lineHeight: 1, fontFamily: 'var(--font-display)' }}>
-                {seasonObtained}
-              </div>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, fontWeight: 600 }}>已收集</div>
-            </div>
-            <div style={{ width: 1, background: 'var(--divider)', margin: '2px 0' }} />
-            <div style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ fontSize: 18, fontWeight: 900, color: '#C8830A', lineHeight: 1, fontFamily: 'var(--font-display)' }}>
-                {seasonTotal - seasonObtained}
-              </div>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, fontWeight: 600 }}>待收集</div>
-            </div>
-            <div style={{ width: 1, background: 'var(--divider)', margin: '2px 0' }} />
-            <div style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{ fontSize: 18, fontWeight: 900, color: '#2B2A2E', lineHeight: 1, fontFamily: 'var(--font-display)' }}>
-                {seasonTotal}
-              </div>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, fontWeight: 600 }}>全赛季</div>
             </div>
           </div>
         </div>

@@ -61,46 +61,40 @@ function buildSrcChain(name) {
     chain.push({ kind: 'img', src: `${base}${dir}/${enc}.png?v=3` });
   }
 
-  // 1. 本地 fruits 目录原名（webp 优先）
-  pushLocal('fruits', trimmed);
-
-  // 1.5 若传入的是精灵名（不含「果实」后缀），自动补全「果实」再试本地图
-  //     例：「恶魔狼」→ 尝试 fruits/恶魔狼果实.webp / .png
-  if (!trimmed.endsWith('果实')) {
-    pushLocal('fruits', `${trimmed}果实`);
-  }
-
-  // 2. 反查同义果实名（用户输入精灵名 / 进化名时）
+  // 反查同义果实名（用户输入精灵名 / 进化名时）
   const alias = getFruitBySpirit(trimmed.endsWith('果实') ? trimmed.slice(0, -2) : trimmed);
-  if (alias && alias !== trimmed) {
-    pushLocal('fruits', alias);
-  }
 
-  // 3. wiki CDN 原名（同时尝试自动补全「果实」后缀的 wiki 查询）
-  const wikiSrc = getWikiFruitImg(trimmed);
-  if (wikiSrc) chain.push({ kind: 'img', src: `${wikiSrc}?v=3` });
-  if (!trimmed.endsWith('果实')) {
-    const wikiWithSuffix = getWikiFruitImg(`${trimmed}果实`);
-    if (wikiWithSuffix && wikiWithSuffix !== wikiSrc) {
-      chain.push({ kind: 'img', src: `${wikiWithSuffix}?v=3` });
+  // wiki CDN 查询（原名、补全「果实」后缀、反查名）
+  const wikiSrc = getWikiFruitImg(trimmed)
+    || (!trimmed.endsWith('果实') ? getWikiFruitImg(`${trimmed}果实`) : null)
+    || (alias ? getWikiFruitImg(alias) : null);
+
+  if (wikiSrc) {
+    // ── 有 wiki 映射：直接走 CDN，跳过本地尝试，不产生 404 噪音 ──────────
+    chain.push({ kind: 'img', src: `${wikiSrc}?v=3` });
+  } else {
+    // ── 无 wiki 映射：本地优先（S1 老果实有 public/fruits/ 本地图） ────────
+    // 1. 本地 fruits 目录原名（webp 优先）
+    pushLocal('fruits', trimmed);
+
+    // 2. 若传入的是精灵名（不含「果实」后缀），自动补全「果实」再试本地图
+    if (!trimmed.endsWith('果实')) {
+      pushLocal('fruits', `${trimmed}果实`);
+    }
+
+    // 3. 反查同义果实名
+    if (alias && alias !== trimmed) {
+      pushLocal('fruits', alias);
+    }
+
+    // 4. 本地 spirits 目录（用户输入了完全自定义的精灵名）
+    const spiritName = trimmed.endsWith('果实') ? trimmed.slice(0, -2) : trimmed;
+    if (spiritName) {
+      pushLocal('spirits', spiritName);
     }
   }
 
-  // 4. wiki CDN 反查名
-  if (alias) {
-    const wikiAlias = getWikiFruitImg(alias);
-    if (wikiAlias && wikiAlias !== wikiSrc) {
-      chain.push({ kind: 'img', src: `${wikiAlias}?v=3` });
-    }
-  }
-
-  // 5. 本地 spirits 目录（用户输入了完全自定义的精灵名）
-  const spiritName = trimmed.endsWith('果实') ? trimmed.slice(0, -2) : trimmed;
-  if (spiritName) {
-    pushLocal('spirits', spiritName);
-  }
-
-  // 6. 兜底 SVG 首字头像
+  // 兜底 SVG 首字头像
   chain.push({ kind: 'svg' });
   return chain;
 }

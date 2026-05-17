@@ -787,7 +787,7 @@ export default function Recorder({ planId, navigate }) {
       {/* ── 双列卡：保底进度 + 咕噜球 ── */}
       <div style={{ display: 'flex', gap: 10, padding: '0 16px', marginBottom: 0 }}>
 
-        {/* 左：保底进度小卡 */}
+        {/* 左：本轮污染数小卡 */}
         <div style={{
           flex: '1 1 0',
           background: 'var(--card)',
@@ -797,7 +797,7 @@ export default function Recorder({ planId, navigate }) {
           display: 'flex', flexDirection: 'column',
         }}>
           <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', letterSpacing: 0.3, marginBottom: 6 }}>
-            保底进度
+            本轮污染数
           </div>
           {/* 大数字 */}
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 2, marginBottom: 6 }}>
@@ -805,17 +805,10 @@ export default function Recorder({ planId, navigate }) {
               fontSize: 34, fontWeight: 900, lineHeight: 1,
               color: progressColor,
             }}>{task.shieldBreakCount}</span>
-            <span style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 600, marginLeft: 1 }}>/80</span>
           </div>
           {/* 细节行 */}
           <div style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.7 }}>
-            <div>每次 1.8% 概率</div>
-            <div style={{
-              fontWeight: remaining <= 20 ? 800 : 500,
-              color: remaining <= 20 ? 'var(--cta)' : 'var(--text-muted)',
-            }}>
-              还差 {remaining} 次必出
-            </div>
+            <div>每次 1.8% 概率出异色</div>
           </div>
         </div>
 

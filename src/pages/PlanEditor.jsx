@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useStore } from '../store';
-import { PLANS, getShinisByAttr, FRUIT_ATTR, getPlanFruitsArray } from '../data/plans';
+import { PLANS, getShinisByAttr, FRUIT_ATTR, getPlanFruitsArray, getFruitBySpirit, getAllSpiritFruitPairs, getAttrByAnyName } from '../data/plans';
 import { getAllEntries, ATTR_CONFIG } from '../data/fruitGuide';
+import { FRUITS_WIKI_IMG } from '../data/fruits-wiki';
 import PlanIcon from '../components/PlanIcon';
 import SpiritAvatar from '../components/SpiritAvatar';
 import FruitTag from '../components/FruitTag';
@@ -38,6 +39,238 @@ const ALL_SHINIES_GROUPED = (() => {
   return groups;
 })();
 
+// ── 果实名自动补全数据源 ────────────────────────────────────────────────────
+const ALL_FRUIT_NAMES = Object.keys(FRUITS_WIKI_IMG).sort((a, b) => a.localeCompare(b, 'zh'));
+const BASE_CANDIDATES = (() => {
+  const list = [];
+  for (const fruitName of ALL_FRUIT_NAMES) {
+    list.push({ key: `fruit:${fruitName}`, fruitName, displayName: fruitName, type: 'fruit' });
+  }
+  for (const { spirit, fruit } of getAllSpiritFruitPairs()) {
+    list.push({ key: `spirit:${spirit}`, fruitName: fruit, spiritName: spirit, displayName: spirit, type: 'spirit' });
+  }
+  return list;
+})();
+
+/** 果实名输入框 + 自动补全下拉 */
+function FruitInput({ value, onChange, placeholder, required }) {
+  const [open, setOpen] = useState(false);
+  const [highlighted, setHighlighted] = useState(0);
+  const wrapRef = useRef(null);
+  const inputRef = useRef(null);
+
+  const query = value.trim();
+  const suggestions = useMemo(() => {
+    if (query.length === 0) return [];
+    const q = query.endsWith('果实') ? query.slice(0, -2) : query;
+    const matched = BASE_CANDIDATES.filter(c => {
+      if (!c.spiritName) return c.fruitName.includes(q) || c.fruitName.replace('果实', '').includes(q);
+      return c.spiritName.includes(q) || c.fruitName.includes(q);
+    });
+    const seen = new Set();
+    const result = [];
+    matched.sort((a, b) => {
+      const aExact = a.spiritName && a.spiritName === q ? 0 : 1;
+      const bExact = b.spiritName && b.spiritName === q ? 0 : 1;
+      if (aExact !== bExact) return aExact - bExact;
+      const aPrefix = (a.spiritName || a.fruitName).startsWith(q) ? 0 : 1;
+      const bPrefix = (b.spiritName || b.fruitName).startsWith(q) ? 0 : 1;
+      if (aPrefix !== bPrefix) return aPrefix - bPrefix;
+      return 0;
+    });
+    for (const c of matched) {
+      if (seen.has(c.fruitName)) continue;
+      seen.add(c.fruitName);
+      result.push(c);
+      if (result.length >= 8) break;
+    }
+    return result;
+  }, [query]);
+
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const selectCandidate = (c) => {
+    onChange(c.fruitName);
+    setOpen(false);
+    inputRef.current?.blur();
+  };
+
+  const tryAutoConvertSpirit = () => {
+    const v = value.trim();
+    if (!v || v.endsWith('果实')) return;
+    const fruit = getFruitBySpirit(v);
+    if (fruit) onChange(fruit);
+  };
+
+  const handleKeyDown = (e) => {
+    if (open && suggestions.length > 0) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setHighlighted(h => Math.min(h + 1, suggestions.length - 1)); return; }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); setHighlighted(h => Math.max(h - 1, 0)); return; }
+      if (e.key === 'Enter')     { e.preventDefault(); selectCandidate(suggestions[highlighted]); return; }
+      if (e.key === 'Escape')    { setOpen(false); return; }
+    }
+    if (e.key === 'Enter' && (!open || suggestions.length === 0)) {
+      e.preventDefault();
+      tryAutoConvertSpirit();
+    }
+  };
+
+  return (
+    <div ref={wrapRef} style={{ position: 'relative', flex: 1 }}>
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        onChange={e => { onChange(e.target.value); setOpen(true); setHighlighted(0); }}
+        onFocus={() => { if (query.length > 0) setOpen(true); }}
+        onBlur={() => { tryAutoConvertSpirit(); }}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        className="input-field"
+        style={{
+          width: '100%',
+          borderColor: required && !value.trim() ? 'rgba(200,131,10,0.4)' : 'var(--divider)',
+        }}
+        autoComplete="off"
+      />
+      {open && suggestions.length > 0 && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
+          background: '#FBF7EC', border: '1.5px solid var(--card-border)',
+          borderRadius: 10, boxShadow: '0 4px 16px rgba(43,42,46,0.14)',
+          zIndex: 300, overflow: 'hidden', maxHeight: 260, overflowY: 'auto',
+        }}>
+          {suggestions.map((c, i) => (
+            <div
+              key={c.key}
+              onMouseDown={() => selectCandidate(c)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '8px 12px', cursor: 'pointer',
+                background: i === highlighted ? 'rgba(200,131,10,0.08)' : 'transparent',
+                borderBottom: i < suggestions.length - 1 ? '1px solid var(--divider)' : 'none',
+                transition: 'background 0.1s',
+              }}
+              onMouseEnter={() => setHighlighted(i)}
+            >
+              <FruitTag name={c.fruitName} size={26} showName={false} />
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-body)', flex: 1, minWidth: 0 }}>
+                {c.displayName}
+              </span>
+              {c.spiritName && c.displayName !== c.fruitName && (
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', background: 'rgba(200,131,10,0.08)', padding: '2px 6px', borderRadius: 8, flexShrink: 0 }}>
+                  {c.fruitName}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── 属性相关辅助 ──────────────────────────────────────────────────────────────
+const ATTR_OPTIONS_FULL = [
+  { id: 'fire', label: '火系' }, { id: 'ice', label: '冰系' }, { id: 'electric', label: '电系' },
+  { id: 'phantom', label: '幻系' }, { id: 'grass', label: '草系' }, { id: 'evil', label: '恶系' },
+  { id: 'ghost', label: '幽系' }, { id: 'mech', label: '机械系' }, { id: 'light', label: '光系' },
+  { id: 'water', label: '水系' }, { id: 'cute', label: '萌系' }, { id: 'normal', label: '普通系' },
+  { id: 'earth', label: '岩系' }, { id: 'wing', label: '翼系' }, { id: 'dragon', label: '龙系' },
+  { id: 'poison', label: '毒系' }, { id: 'ground', label: '地系' }, { id: 'bug', label: '虫系' },
+  { id: 'fighting', label: '武系' },
+];
+function getAttrCfg(attrId) {
+  const opt = ATTR_OPTIONS_FULL.find(o => o.id === attrId);
+  if (!opt) return null;
+  const cfg = ATTR_CONFIG[opt.label] || {};
+  return { label: opt.label, color: cfg.color || '#675D53', bg: cfg.bg || '#F0EAE0', icon: cfg.icon || null };
+}
+
+/** 属性 tag + 点击修改按钮 */
+function FruitAttrPicker({ attrId, onPick }) {
+  const cfg = attrId ? getAttrCfg(attrId) : null;
+  if (cfg) {
+    return (
+      <button onClick={onPick} title="点击修改属性" style={{
+        display: 'inline-flex', alignItems: 'center', gap: 4,
+        padding: '3px 8px', borderRadius: 16,
+        border: `1.5px solid ${cfg.color}55`, background: cfg.bg, color: cfg.color,
+        fontSize: 11, fontWeight: 800, cursor: 'pointer', fontFamily: 'var(--font-body)', flexShrink: 0,
+      }}>
+        {cfg.icon && <img src={cfg.icon} alt={cfg.label} width={12} height={12} style={{ objectFit: 'contain' }} />}
+        {cfg.label}
+        <span style={{ fontSize: 9, opacity: 0.65, marginLeft: 1 }}>✎</span>
+      </button>
+    );
+  }
+  return (
+    <button onClick={onPick} style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4,
+      padding: '3px 10px', borderRadius: 16,
+      border: '1.5px dashed rgba(200,53,26,0.55)', background: 'rgba(200,53,26,0.08)',
+      color: 'rgba(200,53,26,0.95)', fontSize: 11, fontWeight: 800,
+      cursor: 'pointer', fontFamily: 'var(--font-body)', flexShrink: 0,
+    }}>⚠ 选属性</button>
+  );
+}
+
+/** 属性选择 Bottom Sheet */
+function AttrPickerSheet({ open, onClose, value, onChange }) {
+  if (!open) return null;
+  return createPortal(
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+      zIndex: 500, display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        width: '100%', maxWidth: 480, background: 'var(--card)',
+        borderTopLeftRadius: 20, borderTopRightRadius: 20,
+        boxShadow: '0 -6px 30px rgba(0,0,0,0.25)', padding: '14px 16px 28px',
+        maxHeight: '70vh', overflowY: 'auto',
+      }}>
+        <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--divider)', margin: '0 auto 12px' }} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <span style={{ fontSize: 14, fontWeight: 900, color: 'var(--text)', fontFamily: 'var(--font-display)' }}>选择果实属性</span>
+          <button onClick={() => { onChange(null); onClose(); }} style={{
+            fontSize: 11, fontWeight: 700, padding: '4px 10px',
+            border: '1px solid var(--divider)', borderRadius: 16,
+            background: 'var(--card-inner)', color: 'var(--text-muted)',
+            cursor: 'pointer', fontFamily: 'var(--font-body)',
+          }}>清空</button>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+          {ATTR_OPTIONS_FULL.map(o => {
+            const cfg = getAttrCfg(o.id);
+            const isActive = value === o.id;
+            return (
+              <button key={o.id} onClick={() => { onChange(o.id); onClose(); }} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                padding: '8px 6px', borderRadius: 10, cursor: 'pointer',
+                border: isActive ? `2px solid ${cfg.color}` : '1.5px solid var(--divider)',
+                background: isActive ? cfg.bg : 'var(--card-inner)',
+                color: isActive ? cfg.color : 'var(--text-light)',
+                fontSize: 12, fontWeight: isActive ? 900 : 700, fontFamily: 'var(--font-body)',
+                transition: 'all 0.15s',
+              }}>
+                {cfg.icon && <img src={cfg.icon} alt={cfg.label} width={16} height={16} style={{ objectFit: 'contain' }} />}
+                {cfg.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>,
+    document.getElementById('modal-root') || document.body
+  );
+}
+
 // 微型属性徽章（用于果实芯片内）
 function TinyAttrBadge({ attr }) {
   const cfg = ATTR_CONFIG[attr] || { color: '#A09080', bg: '#F0EAE0' };
@@ -59,9 +292,10 @@ function TinyAttrBadge({ attr }) {
   );
 }
 
-// 已拥有果实快选芯片（按当前属性系别过滤）
+// 已拥有果实快选芯片（按当前属性系别过滤，未选属性时隐藏）
 function OwnedFruitPicker({ ownedFruits, onSelect, currentValue, attrLabel, fruitAttrsMap, excludeFruits = [] }) {
-  // 只展示第一属性匹配当前选择系别的果实，且排除已被其他槽选中的
+  // 未选属性时直接不渲染；只展示第一属性匹配当前选择系别的果实
+  if (!attrLabel) return null;
   const filtered = (ownedFruits || []).filter(fruit => {
     if (excludeFruits.includes(fruit)) return false;
     const attrs = fruitAttrsMap[fruit];
@@ -134,29 +368,29 @@ export default function PlanEditor({ basePlanId, userPlanId, goBack }) {
     : null;
   const basePlan = PLANS.find(p => p.id === (basePlanId || existingUserPlan?.attrId));
 
-  // 初始值
-  const initAttrId = existingUserPlan?.attrId || basePlanId || 'fire';
+  // 初始值（新建时不预选属系，编辑时读已存值）
+  const initAttrId = existingUserPlan?.attrId || basePlanId || null;
   const initLabel  = existingUserPlan?.label  || '';
 
-  // 初始化 fruits 数组（兼容新旧两种格式）
+  // 初始化 fruits 数组（兼容新旧两种格式），每槽额外带 attrManual（手动指定属性）
   const initFruits = useMemo(() => {
     if (existingUserPlan) {
-      // 先尝试新格式 fruits[]
       const arr = getPlanFruitsArray(existingUserPlan);
-      if (arr.length > 0) return arr.map(f => ({ fruit: f.fruit || '', spirit: f.spirit || '' }));
+      if (arr.length > 0) return arr.map(f => ({ fruit: f.fruit || '', spirit: f.spirit || '', attrManual: null }));
     }
     if (basePlan) {
       const arr = getPlanFruitsArray(basePlan);
-      if (arr.length > 0) return arr.map(f => ({ fruit: f.fruit || '', spirit: f.spirit || '' }));
+      if (arr.length > 0) return arr.map(f => ({ fruit: f.fruit || '', spirit: f.spirit || '', attrManual: null }));
     }
-    // 默认2槽
-    return [{ fruit: '', spirit: '' }, { fruit: '', spirit: '' }];
+    return [{ fruit: '', spirit: '', attrManual: null }, { fruit: '', spirit: '', attrManual: null }];
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [attrId,  setAttrId]  = useState(initAttrId);
   const [label,   setLabel]   = useState(initLabel);
-  // fruits 是数组：[{ fruit, spirit }, ...]，最多 6 个
+  // fruits 是数组：[{ fruit, spirit, attrManual }, ...]，最多 6 个
   const [fruits,  setFruits]  = useState(initFruits);
+  // 属性 picker sheet 开关：记录当前打开的槽位 index（null 表示关闭）
+  const [attrPickerIdx, setAttrPickerIdx] = useState(null);
   const [showDelete, setShowDelete] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -229,17 +463,20 @@ export default function PlanEditor({ basePlanId, userPlanId, goBack }) {
 
   // ── 槽位操作辅助 ────────────────────────────────────────────────────────────
   const updateSlot = (idx, field, value) => {
-    setFruits(prev => prev.map((f, i) => i === idx ? { ...f, [field]: value } : f));
+    setFruits(prev => prev.map((f, i) => {
+      if (i !== idx) return f;
+      // 修改果实名时，清掉手动指定的属性（让自动识别重新接管）
+      if (field === 'fruit') return { ...f, fruit: value, attrManual: null };
+      return { ...f, [field]: value };
+    }));
   };
 
   // 设置果实数量（增减槽位）
   const setFruitCount = (count) => {
     setFruits(prev => {
       if (count > prev.length) {
-        // 增加槽位
-        return [...prev, ...Array(count - prev.length).fill({ fruit: '', spirit: '' })];
+        return [...prev, ...Array(count - prev.length).fill({ fruit: '', spirit: '', attrManual: null })];
       } else {
-        // 减少槽位（截断）
         return prev.slice(0, count);
       }
     });
@@ -251,7 +488,7 @@ export default function PlanEditor({ basePlanId, userPlanId, goBack }) {
     const plan = {
       id: existingUserPlan?.id || undefined,
       attrId,
-      label: label.trim() || `${currentAttr?.label}方案`,
+      label: label.trim() || `${currentAttr?.label || '自定义'}方案`,
       // 新字段：fruits 数组
       fruits: validFruits.map(f => ({
         fruit:  f.fruit?.trim()  || '',
@@ -275,19 +512,22 @@ export default function PlanEditor({ basePlanId, userPlanId, goBack }) {
     goBack();
   };
 
-  // 切换属性时，预填默认值 + 重置 shinies 全选
+  // 切换属性时，预填默认值 + 重置 shinies；再次点击同一个属性则取消选中
   const handleAttrChange = (id) => {
-    setAttrId(id);
-    // 每次切换属性，shinies 重置为新属系全选
-    setSelectedShinies(getShinisByAttr(id));
+    const newId = attrId === id ? null : id; // toggle：再次点击取消选中
+    setAttrId(newId);
+    // 每次切换属性，shinies 重置为新属系全选（取消选中时清空）
+    setSelectedShinies(getShinisByAttr(newId));
     if (!isEditing) {
-      const base = PLANS.find(p => p.id === id);
-      if (base) {
-        const arr = getPlanFruitsArray(base);
-        if (arr.length > 0) {
-          setFruits(arr.map(f => ({ fruit: f.fruit || '', spirit: f.spirit || '' })));
-        } else {
-          setFruits([{ fruit: '', spirit: '' }, { fruit: '', spirit: '' }]);
+      if (newId) {
+        const base = PLANS.find(p => p.id === newId);
+        if (base) {
+          const arr = getPlanFruitsArray(base);
+          if (arr.length > 0) {
+            setFruits(arr.map(f => ({ fruit: f.fruit || '', spirit: f.spirit || '', attrManual: null })));
+          } else {
+            setFruits([{ fruit: '', spirit: '', attrManual: null }, { fruit: '', spirit: '', attrManual: null }]);
+          }
         }
       }
     }
@@ -345,7 +585,10 @@ export default function PlanEditor({ basePlanId, userPlanId, goBack }) {
 
       {/* ── 属性选择 ── */}
       <div className="card animate-in">
-        <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10 }}>选择属性系别</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <span style={{ fontSize: 13, fontWeight: 800 }}>选择属性系别</span>
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>选填（点击已选项可取消）</span>
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
           {ATTR_OPTIONS.map(attr => {
             const plan = PLANS.find(p => p.id === attr.id);
@@ -397,7 +640,10 @@ export default function PlanEditor({ basePlanId, userPlanId, goBack }) {
       <div className="card animate-in" style={{ animationDelay: '0.06s' }}>
         <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 4 }}>精灵 & 果实配置</div>
         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.6 }}>
-          所有果实的精灵都是{currentAttr?.label}精灵，才能有效攒属系池；属系不同则进世界池。
+          {currentAttr
+            ? <>所有果实的精灵都是<strong style={{ color: 'var(--text-light)' }}>{currentAttr.label}</strong>精灵，才能有效攒属系池；属系不同则进世界池。</>
+            : '同属性精灵的果实进属系池；属系不同则进世界池。可在上方选择属系以快速预填。'
+          }
         </div>
 
         {/* ── 果实数量选择 ── */}
@@ -452,6 +698,9 @@ export default function PlanEditor({ basePlanId, userPlanId, goBack }) {
         {fruits.map((slot, idx) => {
           const isRequired = idx === 0;
           const otherFruits = allSelectedFruits.filter((_, i) => i !== idx);
+          // 自动识别属性（支持精灵名/果实名/进化形态/别名）
+          const autoAttr = slot.fruit?.trim() ? getAttrByAnyName(slot.fruit.trim()) : null;
+          const resolvedAttr = slot.attrManual ?? autoAttr; // 手动 > 自动
           return (
             <div
               key={idx}
@@ -494,17 +743,43 @@ export default function PlanEditor({ basePlanId, userPlanId, goBack }) {
                 <div>
                   <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>果实名{isRequired ? '（必填）' : ''}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <input
-                      className="input-field"
+                    <FruitInput
                       value={slot.fruit}
-                      onChange={e => updateSlot(idx, 'fruit', e.target.value)}
-                      placeholder={idx === 0 ? '如：治愈兔果实' : '如：火红尾果实'}
-                      style={{ flex: 1 }}
+                      onChange={(val) => {
+                        updateSlot(idx, 'fruit', val);
+                        // 如果选中的是精灵条目，自动反查精灵名填入
+                        const spiritName = val.endsWith('果实')
+                          ? (val.slice(0, -2))
+                          : val;
+                        if (!slot.spirit?.trim()) {
+                          const guessedSpirit = getFruitBySpirit(spiritName)
+                            ? spiritName
+                            : fruitSpiritMap[val] || '';
+                          if (guessedSpirit) updateSlot(idx, 'spirit', guessedSpirit);
+                        }
+                      }}
+                      placeholder={idx === 0 ? '输入精灵名或果实名' : '精灵名/果实名'}
+                      required={isRequired}
                     />
                     {slot.fruit?.trim() && (
                       <FruitTag name={slot.fruit.trim()} size={24} showName={false} />
                     )}
                   </div>
+                  {/* 属性识别行 */}
+                  {slot.fruit?.trim() && (
+                    <div style={{ marginTop: 5, display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>属系：</span>
+                      <FruitAttrPicker
+                        attrId={resolvedAttr}
+                        onPick={() => setAttrPickerIdx(idx)}
+                      />
+                      {!resolvedAttr && (
+                        <span style={{ fontSize: 10, color: 'rgba(200,53,26,0.8)', fontWeight: 600 }}>
+                          未识别，点右侧手动指定
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -614,6 +889,19 @@ export default function PlanEditor({ basePlanId, userPlanId, goBack }) {
         {saved ? '✓ 已保存' : (isEditing ? '保存修改' : '保存方案')}
       </button>
     </div>
+
+    {/* ── 果实属性选择 Bottom Sheet ── */}
+    <AttrPickerSheet
+      open={attrPickerIdx !== null}
+      onClose={() => setAttrPickerIdx(null)}
+      value={attrPickerIdx !== null ? (fruits[attrPickerIdx]?.attrManual ?? getAttrByAnyName(fruits[attrPickerIdx]?.fruit?.trim() || '')) : null}
+      onChange={(id) => {
+        if (attrPickerIdx !== null) {
+          setFruits(prev => prev.map((f, i) => i === attrPickerIdx ? { ...f, attrManual: id } : f));
+        }
+        setAttrPickerIdx(null);
+      }}
+    />
 
     {/* ── 异色精灵选择弹窗 ── */}
     {showShinyModal && createPortal(

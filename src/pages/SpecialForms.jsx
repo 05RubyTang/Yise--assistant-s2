@@ -25,14 +25,15 @@ function SpiritImg({ name, size = 80 }) {
   );
 }
 
-// 果实图（本地优先，兜底 wiki CDN）
+// 果实图（有 wiki 映射直接用 CDN，无则本地优先）
 function FruitImg({ name, size = 80 }) {
-  const localSrc = `${base}fruits/${encodeURIComponent(name)}.png?v=3`;
   const rawWikiSrc = getWikiFruitImg(name);
   // v=3 用于破除浏览器对旧 wiki CDN URL 的缓存
   const wikiSrc = rawWikiSrc ? `${rawWikiSrc}?v=3` : null;
-  const [src, setSrc] = useState(localSrc);
-  const [triedWiki, setTriedWiki] = useState(false);
+  // 有 wiki 映射 → 直接 CDN，跳过本地，避免 404 噪音；无 wiki → 本地优先（webp 优先）
+  const localSrc = wikiSrc ? null : `${base}fruits/${encodeURIComponent(name)}.webp?v=3`;
+  const [src, setSrc] = useState(wikiSrc || localSrc || '');
+  const [triedWiki, setTriedWiki] = useState(!!wikiSrc);
 
   const handleError = (e) => {
     if (!triedWiki && wikiSrc) {

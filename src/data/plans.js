@@ -62,7 +62,7 @@ export const FRUIT_ATTR = {
   '深蓝鲸果实':    'water',
   '菊花梨果实':    'cute',
   '小独角兽果实':  'light',
-  // S2 果实（S1 和 S2 共有的果实不重复定义：菊花梨、小夜、小独角兽）
+  // S2 赛季奇遇 & 单刷专属果实
   '恶魔叮果实':    'evil',
   '公平鸽果实':    'normal',
   '灵狐果实':      'fire',
@@ -76,6 +76,20 @@ export const FRUIT_ATTR = {
   '炫光迪迪果实':  'light',
   '加油海葵果实':  'water',
   '咕德帽帽果实':  'ghost',
+  // S2 attr 混刷方案使用的果实（补全，防止编辑器显示「部分果实属系未识别」）
+  '彩蝶鲨果实':    'water',   // 水系混刷
+  '月牙雪熊果实':  'ice',     // 熊狼混刷（S1 精灵，S2 仍可作果实用）
+  '乌拉怪果实':    'evil',    // 小夜/小丑公爵混刷
+  '锤头鹤果实':    'wing',    // 翼系（锤头鹳同家族）
+  '奇丽花果实':    'grass',   // 草系混刷
+  '蹦跳花果实':    'grass',   // 草系混刷
+  '盖武士果实':    'ghost',   // 幽系混刷
+  '梦悠悠果实':    'ghost',   // 幽系混刷
+  '圣剑-X果实':    'mech',    // 机械系混刷
+  '红绒十字果实':  'fire',    // 火系混刷（红绒十字 = 治愈兔同家族）
+  '星光狮果实':    'electric',// 电系混刷
+  '酷拉果实':      'electric',// 电系混刷
+  '粉耳星兔果实':  'phantom', // 幻系单刷
 };
 
 // ─── 精灵名 → 属性2 ID 映射（双属性精灵的第2属性，仅用于出货范围判断） ─────────
@@ -272,10 +286,39 @@ export function getPlanAttrId(plan) {
 }
 
 /**
- * 判断出货精灵属于哪个池子：
- *   'family' — 家族池（spiritA / spiritB 的同族精灵，70次保底）
- *   'attr'   — 属性池（同属性非家族精灵，80次保底）
- *   'world'  — 世界池（其他，80次保底）
+ * analyzePlanFruits(plan)
+ * 根据方案的果实组合分析刷取模式：
+ *   - 果实数：只有 fruitA → 单刷（1种果实）；fruitA+fruitB → 双果实混刷
+ *   - 同属判断：所有果实属于同一属系 → isSameAttr = true
+ * 返回：{ isSingleFruit, isSameAttr, fruitAttrId }
+ *   fruitAttrId：同属时的属性 ID（跨属则为 null）
+ */
+export function analyzePlanFruits(plan) {
+  if (!plan) return { isSingleFruit: true, isSameAttr: false, fruitAttrId: null };
+  const fruits = [plan.fruitA, plan.fruitB, plan.fruitC].filter(Boolean);
+  const isSingleFruit = fruits.length <= 1;
+  const fruitAttrs = [...new Set(fruits.map(f => FRUIT_ATTR[f]).filter(Boolean))];
+  const isSameAttr = fruitAttrs.length === 1;
+  const fruitAttrId = isSameAttr ? fruitAttrs[0] : null;
+  return { isSingleFruit, isSameAttr, fruitAttrId };
+}
+
+/**
+ * 判断出货/污染精灵属于哪个池子：
+ *   'family' — 家族池（单刷方案，且污染精灵是 spiritA/spiritB 同族）
+ *   'attr'   — 属性池（同属混刷/单刷的非家族同属精灵；或同属单刷的目标精灵被当作 attr 处理时）
+ *   'world'  — 世界池（跨属混刷的所有精灵；或其他不匹配的精灵）
+ *
+ * 规则（按果实来判断，而非 category）：
+ *   1. 只有1种果实（单刷）：
+ *      - 目标精灵（spiritA/spiritB）污染 → family
+ *      - 同属性非目标精灵 → attr
+ *      - 其他 → world
+ *   2. 多种果实且全部同属性（同属混刷）：
+ *      - 任何同属性精灵污染 → attr（无家族池！）
+ *      - 其他 → world
+ *   3. 多种果实且跨属性（跨属混刷）：
+ *      - 全部 → world
  *
  * 属性池出货范围说明（官方规则）：
  *   当某属性池触发出货时，该属性下所有精灵（包括第2属性属于该系的精灵）
@@ -284,15 +327,30 @@ export function getPlanAttrId(plan) {
  */
 export function classifyResultType(resultSpirit, plan) {
   if (!resultSpirit || !plan) return 'world';
-  const targetFamilies = [plan.spiritA, plan.spiritB].filter(Boolean);
-  if (targetFamilies.some(t => fuzzyMatch(t, resultSpirit))) return 'family';
-  const planAttrId = getPlanAttrId(plan);
-  if (planAttrId) {
+  const { isSingleFruit, isSameAttr, fruitAttrId } = analyzePlanFruits(plan);
+
+  if (isSingleFruit) {
+    // 单刷方案：先判断是否是目标精灵（家族池）
+    const targetFamilies = [plan.spiritA, plan.spiritB].filter(Boolean);
+    if (targetFamilies.some(t => fuzzyMatch(t, resultSpirit))) return 'family';
+    // 非目标精灵：按属性判断
+    if (fruitAttrId) {
+      const spiritAttr1 = lookupAttr(resultSpirit);
+      const spiritAttr2 = lookupAttr2(resultSpirit);
+      if (spiritAttr1 === fruitAttrId || spiritAttr2 === fruitAttrId) return 'attr';
+    }
+    return 'world';
+  }
+
+  if (isSameAttr && fruitAttrId) {
+    // 同属混刷：没有家族池，任何同属精灵 → attr
     const spiritAttr1 = lookupAttr(resultSpirit);
     const spiritAttr2 = lookupAttr2(resultSpirit);
-    // 出货精灵的任意一个属性与方案属性匹配，即判为属性池出货
-    if (spiritAttr1 === planAttrId || spiritAttr2 === planAttrId) return 'attr';
+    if (spiritAttr1 === fruitAttrId || spiritAttr2 === fruitAttrId) return 'attr';
+    return 'world';
   }
+
+  // 跨属混刷：全部归世界池
   return 'world';
 }
 
@@ -476,58 +534,116 @@ export function resolveShinyKey(spiritName) {
 }
 
 /**
- * computePoolCounts(activeTasks, completedTasks, allPlans)
+ * computePoolCounts(activeTasks, completedTasks, allPlans, season?)
  * 从任务事件流（shieldBreaks）派生三池当前保底计数。
  *
- * 规则：
- *   - 家族池：每个进行中 task 独立计算，出货后清零
- *   - 属性池：跨 task 全局累积（active + completed 中未出货属性池的记录）
- *   - 世界池：跨 task 全局累积
+ * ── 截断点机制 ──────────────────────────────────────────────────────────────
+ * 每次某池出货，该池就从那个时间点（completedAt）重新归零开始计数。
+ * 实现方式：
+ *   1. 先扫描 completedTasks，找各池最近一次出货的 completedAt 作为「截断点」
+ *      - worldCutoff：最近一次世界池出货的 completedAt（全局唯一）
+ *      - attrCutoffByAttr[attrId]：最近一次该属性池出货的 completedAt（按属性分桶）
+ *      注意：hasContinuation 任务（COMPLETE_AND_CONTINUE 产生）的 completedAt
+ *            也参与截断点计算（该池确实在那时出货了），但其 breaks 被跳过（已转移到 activeTask）。
+ *   2. 统计所有 breaks（activeTasks + completedTasks）时，按 break.time 与截断点比较：
+ *      - break.time ≤ cutoff → 跳过（截断点之前的进度已被清零）
+ *      - break.time > cutoff  → 计入（截断点之后的新进度）
+ *   3. hasContinuation 任务：其 breaks 已全部转移到 activeTask，
+ *      遍历 completedTasks 时跳过其 breaks，避免重复计数。
  *
- * 返回：{ family: number, attr: number, world: number }
- * （family 为「当前进行中 task」的家族池计数，多 task 并行时取最大值）
+ * ── 赛季隔离 ────────────────────────────────────────────────────────────────
+ * 传入 season 时，只统计同赛季的 completedTasks（截断点和 break 计数均限赛季内）。
+ *
+ * ── 家族池 ──────────────────────────────────────────────────────────────────
+ * 家族池绑定单个 task，出货后由 COMPLETE_AND_CONTINUE 过滤 breaks 清零，不走截断点机制。
+ * 多个进行中 task 并行时取最大值。
+ *
+ * ── Jelly（果冻/星辰虫）────────────────────────────────────────────────────
+ * jelly 固定 pool='world'，计入世界池保底（不占 shieldBreakCount 序号），
+ * 跟随 worldCutoff 截断点规则。
+ *
+ * @param {string} [season] - 当前赛季（'S1'|'S2'）
+ * 返回：{ family: number, attrPools: { [attrId]: number }, worldPool: number }
  */
-export function computePoolCounts(activeTasks, completedTasks, allPlans) {
-  let familyMax = 0;
-  let attrTotal = 0;
-  let worldTotal = 0;
+export function computePoolCounts(activeTasks, completedTasks, allPlans, season) {
+  // 赛季过滤：只保留同赛季的已完成任务
+  const relevantCompleted = (completedTasks || []).filter(t => {
+    if (!t || t.resultType === 'abandoned') return false;
+    if (season && t.season && t.season !== season) return false;
+    return true;
+  });
 
-  // 进行中的 task：家族池取最大值，属性池/世界池跨任务累积
+  // ── 阶段 1：建立各池截断点 ──────────────────────────────────────────────
+  // hasContinuation 任务的 completedAt 也参与截断点计算（该池确实在那时出货）
+  let worldCutoff = null;                // 最近一次世界池出货时间（ISO 字符串）
+  const attrCutoffByAttr = {};          // { [attrId]: ISO 字符串 }
+  relevantCompleted.forEach(task => {
+    const plan = allPlans.find(p => p.id === task.planId);
+    const planAttrId = getPlanAttrId(plan);
+    const outPool = task.resultType; // 'family' | 'attr' | 'world'
+    if (outPool === 'world') {
+      if (!worldCutoff || task.completedAt > worldCutoff) worldCutoff = task.completedAt;
+    } else if (outPool === 'attr' && planAttrId) {
+      if (!attrCutoffByAttr[planAttrId] || task.completedAt > attrCutoffByAttr[planAttrId]) {
+        attrCutoffByAttr[planAttrId] = task.completedAt;
+      }
+    }
+    // family 池：绑定 task 内部，出货由 COMPLETE_AND_CONTINUE 的 filter 清零，不建全局截断点
+  });
+
+  // ── 阶段 2：计数 breaks ──────────────────────────────────────────────────
+  const attrPools = {}; // { [attrId]: number }
+  let worldPool = 0;
+  let familyMax = 0;
+
+  /**
+   * 统计单条 break，按截断点决定是否计入。
+   * onFamily: 家族池命中时的回调（null 则忽略家族 break）
+   */
+  const countBreak = (br, plan, planAttrId, onFamily) => {
+    // shiny（出货事件本身）和 failed（失败/逃跑）不计入任何保底池
+    if (br.result === 'shiny' || br.result === 'failed') return;
+    // 推断池归属：优先取已存储的 pool 字段，否则实时推断
+    const pool = br.pool || (plan ? classifyResultType(br.spiritName, plan) : 'world');
+    if (pool === 'family') {
+      if (onFamily) onFamily();
+    } else if (pool === 'attr') {
+      const cutoff = planAttrId ? attrCutoffByAttr[planAttrId] : null;
+      // break.time 早于截断点 → 已被清零，跳过；无截断点或晚于截断点 → 计入
+      if (!cutoff || !br.time || br.time > cutoff) {
+        if (planAttrId) attrPools[planAttrId] = (attrPools[planAttrId] || 0) + 1;
+        else worldPool++; // 无法识别属性时归入世界池
+      }
+    } else { // 'world'（含 jelly，jelly 的 pool 固定为 'world'）
+      if (!worldCutoff || !br.time || br.time > worldCutoff) worldPool++;
+    }
+  };
+
+  // 进行中的任务
   (activeTasks || []).forEach(task => {
     const plan = allPlans.find(p => p.id === task.planId);
+    const planAttrId = getPlanAttrId(plan);
     let familyCount = 0;
     (task.shieldBreaks || []).forEach(br => {
-      if (br.result === 'jelly') return; // jelly 不占保底
-      const pool = br.pool || (br.result !== 'shiny' && plan
-        ? classifyResultType(br.spiritName, plan)
-        : 'world');
-      if (pool === 'family') familyCount++;
-      else if (pool === 'attr') attrTotal++;
-      else worldTotal++;
+      countBreak(br, plan, planAttrId, () => familyCount++);
     });
     if (familyCount > familyMax) familyMax = familyCount;
   });
 
-  // 已完成的 task：属性池/世界池的「未出货」段贡献继续累积
-  // （出货后对应池清零，因此只看 completed 中不是出货结果的 breaks）
-  // 实际上 completedTasks 只记录最终结果，不含过程 breaks（完整 breaks 在 completedTasks[i].shieldBreaks）
-  // 若有 shieldBreaks 记录，则统计其中非出货池的 breaks
-  (completedTasks || []).forEach(completed => {
-    if (!completed || completed.resultType === 'abandoned') return;
-    const plan = allPlans.find(p => p.id === completed.planId);
-    const outPool = completed.resultType; // 'family' | 'attr' | 'world'
-    (completed.shieldBreaks || []).forEach(br => {
-      if (br.result === 'jelly') return;
-      const pool = br.pool || (plan ? classifyResultType(br.spiritName, plan) : 'world');
-      // 出货池已归零，不计入全局累积；另外两池继续累积
-      if (pool === outPool) return;
-      if (pool === 'attr') attrTotal++;
-      else if (pool === 'world') worldTotal++;
-      // family 池归属于 task 内部（已出货清零），完成任务后不再计入全局
+  // 已完成的任务
+  relevantCompleted.forEach(task => {
+    // hasContinuation：breaks 已转移到 activeTask，跳过避免重复计数
+    // （其 completedAt 已在阶段 1 作为截断点参与了计算）
+    if (task.hasContinuation) return;
+    const plan = allPlans.find(p => p.id === task.planId);
+    const planAttrId = getPlanAttrId(plan);
+    (task.shieldBreaks || []).forEach(br => {
+      // 家族 breaks 属于 task 内部（已出货清零），完成后不再计入全局，传 null 忽略
+      countBreak(br, plan, planAttrId, null);
     });
   });
 
-  return { family: familyMax, attr: attrTotal, world: worldTotal };
+  return { family: familyMax, attrPools, worldPool };
 }
 
 /**
@@ -597,15 +713,25 @@ export function computeFamilyPool(task, plan) {
 
 /**
  * getPlanMainPool(plan)
- * 返回方案的主池类型：
- *   'family' — 赛季奇遇方案 / 单精灵方案 / 有具体 shinies 列表的方案
- *   'attr'   — 同属性混刷方案（有 attrId，无具体 shinies）
- *   'world'  — 跨属性方案（无 attrId）
+ * 返回方案的主池类型（基于果实分析，而非 category 字段）：
+ *   'family' — 单刷（只有1种果实）
+ *   'attr'   — 同属混刷（多种果实且全部同属性）
+ *   'world'  — 跨属混刷（多种果实但跨属性）
+ *
+ * 对于自定义方案（无 fruitA 等字段），降级使用 category / singleSpirit / attrId 推断。
  */
 export function getPlanMainPool(plan) {
   if (!plan) return 'world';
-  if (plan.category === 'seasonal' || plan.singleSpirit) return 'family';
-  if (plan.shinies && plan.shinies.length > 0) return 'family';
+  // 优先用果实数据判断（官方方案都有 fruitA）
+  const fruits = [plan.fruitA, plan.fruitB, plan.fruitC].filter(Boolean);
+  if (fruits.length > 0) {
+    const { isSingleFruit, isSameAttr, fruitAttrId } = analyzePlanFruits(plan);
+    if (isSingleFruit) return 'family';
+    if (isSameAttr && fruitAttrId) return 'attr';
+    return 'world';
+  }
+  // 降级：自定义方案没有 fruitA 字段时，按旧逻辑推断
+  if (plan.category === 'seasonal' || plan.category === 'single' || plan.singleSpirit) return 'family';
   if (getPlanAttrId(plan)) return 'attr';
   return 'world';
 }

@@ -246,44 +246,22 @@ export default function Checklist({ planId, basePlanId, navigate, goBack }) {
 
         {/* 顶部：图标 + 标题行 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-          {plan.season ? (
-            /* 赛季单抓：用精灵大图替换属性 icon */
-            <div style={{
-              width: 64, height: 64, borderRadius: 14, flexShrink: 0,
-              background: isObtained ? 'rgba(75,156,70,0.1)' : '#F0E8D5',
-              border: isObtained ? '2px solid rgba(75,156,70,0.35)' : '2px solid rgba(103,93,83,0.15)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              overflow: 'hidden', position: 'relative',
-            }}>
-              <img
-                src={spiritImgSrc}
-                alt={targetSpirit}
-                loading="lazy"
-                style={{ width: 56, height: 56, objectFit: 'contain' }}
-                onError={e => {
-                  const wiki = getWikiSpiritImg(targetSpirit);
-                  if (wiki && e.target.src !== wiki) { e.target.src = wiki; }
-                  else { e.target.style.display = 'none'; }
-                }}
-              />
-              {isObtained && (
-                <span style={{
-                  position: 'absolute', bottom: 2, right: 4,
-                  fontSize: 12, color: '#4B9C46', fontWeight: 900,
-                }}>✓</span>
-              )}
-            </div>
-          ) : (
-            /* 属性方案：保持原属性 icon */
-            <div style={{
-              width: 52, height: 52, borderRadius: 13,
-              background: '#F0E8D5',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0, overflow: 'hidden', padding: 6,
-            }}>
-              <PlanIcon plan={plan} size={36} />
-            </div>
-          )}
+          {/* 统一用属系图标（PlanIcon） */}
+          <div style={{
+            width: 52, height: 52, borderRadius: 13,
+            background: '#F0E8D5',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0, overflow: 'hidden', padding: 6,
+            position: 'relative',
+          }}>
+            <PlanIcon plan={plan} size={36} />
+            {plan.season && isObtained && (
+              <span style={{
+                position: 'absolute', bottom: 1, right: 3,
+                fontSize: 11, color: '#4B9C46', fontWeight: 900,
+              }}>✓</span>
+            )}
+          </div>
 
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 18, fontWeight: 900, fontFamily: 'var(--font-display)' }}>

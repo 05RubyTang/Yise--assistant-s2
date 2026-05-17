@@ -90,6 +90,21 @@ function TaskDetailPage({ task, onBack, userPlanConfig }) {
   const shiny    = breakdowns.shiny    || 0;
   const hasShieldBreaks = task.shieldBreaks && task.shieldBreaks.length > 0;
 
+  // ── 三池进度快照（从 shieldBreaks 的 pool 字段聚合，旧数据可能无 pool 字段）──
+  const poolSnapshot = (() => {
+    if (!hasShieldBreaks) return null;
+    let family = 0, attr = 0, world = 0, unknown = 0;
+    for (const b of task.shieldBreaks) {
+      if (b.pool === 'family') family++;
+      else if (b.pool === 'attr') attr++;
+      else if (b.pool === 'world') world++;
+      else if (b.result === 'polluted' || b.result === 'original' || b.result === 'jelly') unknown++;
+    }
+    // 全无 pool 字段（纯旧数据）则不展示快照，避免全显示 0 误导用户
+    if (family === 0 && attr === 0 && world === 0 && unknown > 0) return null;
+    return { family, attr, world };
+  })();
+
   // 属性球信息（根据出货精灵属性动态）
   // 属性球跟随方案的果实精灵（spiritA），而非出货精灵的属性
   // 例：菊花梨方案（萌系）全程抓菊花梨消耗美妙球，即便最终出货的是治愈兔（火系）
@@ -346,6 +361,71 @@ function TaskDetailPage({ task, onBack, userPlanConfig }) {
                     {ballInfo?.label ?? '属性球'}
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── 三池进度快照卡 ── */}
+        {poolSnapshot && (
+          <div style={{ margin: '0 16px 12px', borderRadius: 18, overflow: 'hidden', position: 'relative' }}>
+            <div style={{ padding: '0 16px 14px' }}>
+              <div style={{ marginBottom: 10 }}>
+                <span className="font-subtitle" style={{ fontSize: 14, fontWeight: 800, color: '#675D53', letterSpacing: 0.8 }}>本次刷取各池分布</span>
+                <div style={{ fontSize: 10, color: '#9B8F84', fontWeight: 500, marginTop: 2 }}>
+                  本次刷取期间各池实际触发次数（非实时保底进度，仅作留念参考）
+                </div>
+              </div>
+              <div style={{ height: 1, background: '#D3CFC8', marginBottom: 12 }} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                {[
+                  { key: 'family', label: '家族池', cap: 80, color: '#C8830A', tagBg: '#FFF3CC', border: '#C8A020' },
+                  { key: 'attr',   label: '系别池', cap: 80, color: '#7E4E00', tagBg: '#FFE8B0', border: '#D4940A' },
+                  { key: 'world',  label: '世界池', cap: 80, color: '#5B3A9E', tagBg: '#EFE0FF', border: '#9B6DD4' },
+                ].map(({ key, label, cap, color, tagBg, border }) => {
+                  const val = poolSnapshot[key];
+                  const pct = Math.min(100, Math.round((val / cap) * 100));
+                  const isShinyPool = (
+                    (key === 'family' && (poolType === 'family' || poolType === 'pool')) ||
+                    key === poolType
+                  );
+                  return (
+                    <div key={key} style={{
+                      background: tagBg,
+                      border: `1.5px solid ${border}`,
+                      borderRadius: 12,
+                      padding: '10px 10px 8px',
+                      position: 'relative',
+                      textAlign: 'center',
+                    }}>
+                      {/* 出货池角标 */}
+                      {isShinyPool && (
+                        <div style={{
+                          position: 'absolute', top: 5, right: 6,
+                          fontSize: 11, lineHeight: 1,
+                          filter: 'drop-shadow(0 0 3px rgba(251,200,57,0.9))',
+                        }}>✨</div>
+                      )}
+                      <div style={{ fontSize: 10, fontWeight: 700, color, marginBottom: 4 }}>{label}</div>
+                      {/* 进度条 */}
+                      <div style={{
+                        height: 5, borderRadius: 3,
+                        background: 'rgba(103,93,83,0.15)',
+                        marginBottom: 5, overflow: 'hidden',
+                      }}>
+                        <div style={{
+                          height: '100%',
+                          width: `${pct}%`,
+                          borderRadius: 3,
+                          background: color,
+                          transition: 'width 0.3s',
+                        }} />
+                      </div>
+                      <div className="font-subtitle" style={{ fontSize: 18, fontWeight: 900, color, lineHeight: 1 }}>{val}</div>
+                      <div style={{ fontSize: 10, color: '#9B8F84', marginTop: 2 }}>/ {cap} 次</div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>

@@ -90,7 +90,7 @@ export const FRUIT_ATTR = {
   '幽影树果实':    'ghost',
   '小丑公爵果实':  'evil',
   '小鼓象果实':    'mech',
-  '音碟吼果实':    'normal',
+  // '音碟吼果实': 'normal',  // 果实暂未上线，待游戏更新后取消注释
   '烟花伯爵果实':  'fire',
   '帅帅魔偶果实':  'phantom',
   '炫光迪迪果实':  'light',

@@ -186,9 +186,6 @@ export const FRUITS_WIKI_IMG = {
   // 幻系
   "粉耳星兔果实": "https://patchwiki.biligame.com/images/rocom/0/00/pwxj8r4qxyc2l8388d0ab32orl755kx.png", // 同家族：粉粉星果实
 
-  // 普通系
-  "音碟吼果实":   "https://patchwiki.biligame.com/images/rocom/d/d8/ngi3dgaw7l81vas6aejm9rg3kjz7lj0.png", // 同家族：逗逗果实
-
   // 独角兽系
   "独角兽果实":   "https://patchwiki.biligame.com/images/rocom/4/4e/jzb1butqad19cd2grife4yzab1el3l8.png", // 同：小独角兽果实
 

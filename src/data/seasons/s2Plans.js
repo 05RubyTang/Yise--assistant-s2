@@ -223,7 +223,7 @@ export const S2_PLANS = [
     icon: '⚪',
     iconImg: `${base}attrs/normal.png`,
     color: '#F48FB1',
-    fruitA: '音碟吼果实',
+    fruitA: null,       // 音碟吼果实暂未上线，无法单刷
     fruitB: null,
     spiritA: '音碟吼',
     spiritB: null,
@@ -363,7 +363,7 @@ export const S2_PLANS = [
     unlockB: null,
   },
 
-  // 3. 普通系：公平鸽 + 音碟吼
+  // 3. 普通系：公平鸽（音碟吼果实暂未上线，仅用公平鸽果实单果）
   {
     id: 's2_attr_normal',
     season: 'S2',
@@ -373,7 +373,7 @@ export const S2_PLANS = [
     iconImg: `${base}attrs/normal.png`,
     color: '#A8A878',
     fruitA: '公平鸽果实',
-    fruitB: '音碟吼果实',
+    fruitB: null,       // 音碟吼果实暂未上线
     spiritA: '公平鸽',
     spiritB: '音碟吼',
     shinies: ['公平鸽', '音碟吼'],

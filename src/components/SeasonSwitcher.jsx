@@ -75,18 +75,6 @@ export default function SeasonSwitcher({ style }) {
             {/* 赛季标签 */}
             <span>{season.label}</span>
 
-            {/* 历史赛季标记 */}
-            {isHistorical && !isActive && (
-              <span style={{
-                fontSize: 10,
-                padding: '2px 6px',
-                borderRadius: 4,
-                background: 'rgba(103,93,83,0.1)',
-                color: 'var(--text-muted)',
-              }}>
-                历史
-              </span>
-            )}
           </button>
         );
       })}

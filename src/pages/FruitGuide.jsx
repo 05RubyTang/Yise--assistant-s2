@@ -810,28 +810,35 @@ export default function FruitGuide({ goBack }) {
           if (visible.length === 0) return null;
           return (
             <div key={group.id} style={{ marginBottom: gi < currentTab.groups.length - 1 ? 18 : 0 }}>
-              {/* 子分组标题 */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <div style={{
-                  width: 3, height: 14, borderRadius: 2,
-                  background: group.color, flexShrink: 0,
-                }} />
-                <span style={{ fontSize: 12, fontWeight: 900, color: '#2B2A2E', fontFamily: 'var(--font-display)' }}>
-                  {group.label}
-                </span>
-                <span style={{
-                  fontSize: 10, padding: '1px 6px', borderRadius: 8, fontWeight: 700,
-                  background: `${group.color}18`, color: group.color,
-                  border: `1px solid ${group.color}40`,
-                }}>
-                  {visible.length} 个
-                </span>
-                {group.desc && (
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 500 }}>
-                    {group.desc}
-                  </span>
-                )}
-              </div>
+                {/* 子分组标题 */}
+                <div style={{ marginBottom: group.desc ? 4 : 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{
+                      width: 3, height: 14, borderRadius: 2,
+                      background: group.color, flexShrink: 0,
+                    }} />
+                    <span style={{ fontSize: 12, fontWeight: 900, color: '#2B2A2E', fontFamily: 'var(--font-display)' }}>
+                      {group.label}
+                    </span>
+                    <span style={{
+                      fontSize: 10, padding: '1px 6px', borderRadius: 8, fontWeight: 700,
+                      background: `${group.color}18`, color: group.color,
+                      border: `1px solid ${group.color}40`,
+                    }}>
+                      {visible.length} 个
+                    </span>
+                  </div>
+                  {/* desc 单独一行，缩进对齐文字 */}
+                  {group.desc && (
+                    <div style={{
+                      fontSize: 10, color: 'var(--text-muted)', fontWeight: 500,
+                      marginTop: 3, paddingLeft: 11, lineHeight: 1.5,
+                      marginBottom: 8,
+                    }}>
+                      {group.desc}
+                    </div>
+                  )}
+                </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {visible.map((entry, i) => (

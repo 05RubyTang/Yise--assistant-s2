@@ -109,14 +109,15 @@ function getSpiritRecords(name, state) {
 }
 
 // 支持 wiki 兜底的果实图卡
-function FruitImg({ name, size = 60 }) {
-  const hasLocal = LOCAL_FRUIT_FILES.has(name);
-  const rawWikiSrc = getWikiFruitImg(name);
+function FruitImg({ name, size = 60, pending = false }) {
+  // pending=true：果实暂未上线（如音碟吼），直接显示占位，不尝试加载
+  const hasLocal = !pending && name && LOCAL_FRUIT_FILES.has(name);
+  const rawWikiSrc = !pending && name ? getWikiFruitImg(name) : null;
   const wikiSrc = rawWikiSrc ? `${rawWikiSrc}?v=3` : null;
   const localSrc = (!wikiSrc && hasLocal) ? `${base}fruits/${encodeURIComponent(name)}.webp?v=3` : null;
 
-  // 既无 wiki 映射也无本地文件 → 直接显示占位，不尝试加载
-  const noImage = !wikiSrc && !localSrc;
+  // 既无 wiki 映射也无本地文件，或 pending → 直接显示占位，不尝试加载
+  const noImage = pending || (!wikiSrc && !localSrc);
 
   const [src, setSrc] = useState(wikiSrc || localSrc || '');
   const [triedWiki, setTriedWiki] = useState(!!wikiSrc);
@@ -154,7 +155,7 @@ function FruitImg({ name, size = 60 }) {
         fontSize: 9, color: 'var(--text-muted)', fontWeight: 600,
         textAlign: 'center', maxWidth: size + 8,
         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-      }}>{name}</span>
+      }}>{pending ? '果实待公布' : (name || '')}</span>
     </div>
   );
 }
@@ -271,8 +272,9 @@ function PlanInfo({ plan, currentSeason }) {
       </div>
 
       {/* 果实公式：fruitA [+ fruitB] ＝ 精灵列表 */}
+      {/* fruitA 为 null（如音碟吼，果实暂未上线）时仍渲染占位框 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: 2 }}>
-        {plan.fruitA && <FruitImg name={plan.fruitA} size={56} />}
+        <FruitImg name={plan.fruitA || null} size={56} pending={!plan.fruitA} />
         {plan.fruitB && (
           <>
             <span style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-muted)', flexShrink: 0 }}>+</span>

@@ -422,20 +422,25 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
   // 已拥有果实
   const ownedFruits = state.ownedFruits || [];
 
+  // 当前赛季过滤后的 activeTasks（防止 S1 任务污染 S2 方案状态）
+  const currentSeasonActiveTasks = (state.activeTasks || []).filter(
+    t => !currentSeason || !t.season || t.season === currentSeason
+  );
+
   // 计算每类方案的状态 + 果实是否集齐
   const attrWithStatus = attrPlans.map(p => ({
     plan: p,
-    status: getPlanStatus(p, state.spirits, state.activeTasks),
+    status: getPlanStatus(p, state.spirits, currentSeasonActiveTasks),
     fruitReady: isFruitReady(p, ownedFruits),
   }));
   const seasonWithStatus = seasonPlans.map(p => ({
     plan: p,
-    status: getSeasonPlanStatus(p, state.spirits, state.activeTasks),
+    status: getSeasonPlanStatus(p, state.spirits, currentSeasonActiveTasks),
     fruitReady: isFruitReady(p, ownedFruits),
   }));
   const singleWithStatus = singleSpiritPlans.map(p => ({
     plan: p,
-    status: getSeasonPlanStatus(p, state.spirits, state.activeTasks),
+    status: getSeasonPlanStatus(p, state.spirits, currentSeasonActiveTasks),
     fruitReady: isFruitReady(p, ownedFruits),
   }));
 
@@ -449,8 +454,8 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
   // 用户自定义方案
   const userPlans = (state.userPlanConfig || []).filter(p => !p.deleted);
 
-  // 进行中的 planId（固定置顶）
-  const activePlanIds = new Set((state.activeTasks || []).map(t => t.planId));
+  // 进行中的 planId（固定置顶，仅当前赛季）
+  const activePlanIds = new Set(currentSeasonActiveTasks.map(t => t.planId));
 
   // 排序：进行中 → 未开始(果实齐) → 未开始(果实缺) → 已完成
   const sortKey = ({ status, fruitReady }) => {
@@ -629,7 +634,7 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
                   userPlans={state.userPlanConfig}
                   spirits={state.spirits}
                   completedTasks={state.completedTasks}
-                  activeTasks={state.activeTasks}
+                  activeTasks={currentSeasonActiveTasks}
                   pinned={activePlanIds.has(plan.id)}
                   fruitReady={fruitReady}
                   onClick={() => navigate('checklist', { planId: plan.id, basePlanId: plan.id })}
@@ -1085,7 +1090,7 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
               userPlans={state.userPlanConfig}
               spirits={state.spirits}
               completedTasks={state.completedTasks}
-              activeTasks={state.activeTasks}
+              activeTasks={currentSeasonActiveTasks}
               pinned={activePlanIds.has(plan.id)}
               fruitReady={fruitReady}
               onClick={() => navigate('attrPlanDetail', { planId: plan.id })}
@@ -1107,7 +1112,7 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
               plan={plan}
               spirits={state.spirits}
               completedTasks={state.completedTasks}
-              activeTasks={state.activeTasks}
+              activeTasks={currentSeasonActiveTasks}
               fruitReady={fruitReady}
               onClick={() => navigate('checklist', { planId: plan.id })}
             />
@@ -1128,7 +1133,7 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
               plan={plan}
               spirits={state.spirits}
               completedTasks={state.completedTasks}
-              activeTasks={state.activeTasks}
+              activeTasks={currentSeasonActiveTasks}
               fruitReady={fruitReady}
               subtitle="单刷异色 · 专属果实"
               onClick={() => navigate('checklist', { planId: plan.id })}

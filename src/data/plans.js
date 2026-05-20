@@ -661,8 +661,8 @@ export function computePoolCounts(activeTasks, completedTasks, allPlans, season)
     }
   };
 
-  // 进行中的任务
-  (activeTasks || []).forEach(task => {
+  // 进行中的任务（仅统计当前赛季，防止 S1 任务污染 S2 池子）
+  (activeTasks || []).filter(t => !season || !t.season || t.season === season).forEach(task => {
     const plan = allPlans.find(p => p.id === task.planId);
     const planAttrId = getPlanAttrId(plan);
     let familyCount = 0;

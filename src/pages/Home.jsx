@@ -4,12 +4,15 @@ import ProgressBar from '../components/ProgressBar';
 import PlanIcon from '../components/PlanIcon';
 import SpiritAvatar from '../components/SpiritAvatar';
 
-/** 从 completedTasks 中提取最近获得的异色精灵（去重，最多2只） */
+/** 从 completedTasks 中提取最近获得的异色精灵（去重，最多2只，仅当前赛季） */
 function getRecentShinies(state) {
+  const season = state.currentSeason;
   const seen = new Set();
   const result = [];
   for (const t of state.completedTasks || []) {
     if (t.resultType === 'abandoned' || !t.resultSpirit) continue;
+    // 仅展示当前赛季的出货记录
+    if (season && t.season && t.season !== season) continue;
     if (seen.has(t.resultSpirit)) continue;
     seen.add(t.resultSpirit);
     result.push(t);
@@ -92,7 +95,9 @@ function RecentSpiritCard({ task }) {
 
 export default function Home({ navigate }) {
   const { state, poolCounts } = useStore();
-  const tasks = state.activeTasks || [];
+  const currentSeason = state.currentSeason;
+  // 只展示当前赛季的进行中任务
+  const tasks = (state.activeTasks || []).filter(t => !currentSeason || !t.season || t.season === currentSeason);
   const recentShinies = getRecentShinies(state);
   const hasRecentShinies = recentShinies.length > 0;
 

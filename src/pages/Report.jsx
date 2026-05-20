@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../store';
-import { PLANS, POOL_TYPE_CONFIG, resolvePlanIconImg } from '../data/plans';
+import { PLANS, S2_PLANS, POOL_TYPE_CONFIG, resolvePlanIconImg } from '../data/plans';
 import SpiritAvatar from '../components/SpiritAvatar';
 import PlanIcon from '../components/PlanIcon';
 
@@ -45,6 +45,7 @@ function Row({ label, children }) {
 export default function Report({ planId, spiritName, resultType, navigate }) {
   const { state, dispatch } = useStore();
   const rawPlan = PLANS.find(p => p.id === planId)
+    || S2_PLANS.find(p => p.id === planId)
     || (state.userPlanConfig || []).find(p => p.id === planId);
   // 标准化：自定义方案继承基础属性方案的图标
   const attrBase = rawPlan?.attrId ? PLANS.find(p => p.id === rawPlan.attrId) : null;

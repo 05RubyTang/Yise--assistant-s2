@@ -109,7 +109,12 @@ export const FRUIT_ATTR = {
   '红绒十字果实':  'fire',    // 火系混刷（红绒十字 = 治愈兔同家族）
   '星光狮果实':    'electric',// 电系混刷
   '酷拉果实':      'electric',// 电系混刷
-  '粉耳星兔果实':  'phantom', // 幻系单刷
+  // S2 新增单果方案果实
+  '厉毒修萝果实':  'poison',  // 毒系（厉毒修萝）
+  '电企鹅果实':    'ice',     // 冰系（电企鹅）
+  '睡睡王果实':    'normal',  // 普通系（睡睡王）
+  '梦想三三果实':  'cute',    // 萌系（梦想三三）
+  '晶石蜗果实':    'light',   // 光系（晶石蜗）
 };
 
 // ─── 精灵名 → 属性2 ID 映射（双属性精灵的第2属性，仅用于出货范围判断） ─────────
@@ -194,6 +199,12 @@ export const SPIRIT_ATTR1 = {
   // S2 战令异色
   '雪怪':     'ice',
   '爆焰喷喷': 'fire',
+  // S2 attr 单果方案涉及的果实精灵
+  '厉毒修萝': 'poison',
+  '电企鹅':   'ice',
+  '睡睡王':   'normal',
+  '梦想三三': 'cute',
+  '晶石蜗':   'light',
 };
 
 // ─── 按属性 ID 获取所有异色精灵 ──────────────────────────────────────────────
@@ -325,15 +336,20 @@ export function analyzePlanFruits(plan) {
 
 /**
  * 判断出货/污染精灵属于哪个池子：
- *   'family' — 家族池（单刷方案，且污染精灵是 spiritA/spiritB 同族）
- *   'attr'   — 属性池（同属混刷/单刷的非家族同属精灵；或同属单刷的目标精灵被当作 attr 处理时）
- *   'world'  — 世界池（跨属混刷的所有精灵；或其他不匹配的精灵）
+ *   'family' — 家族池（单刷方案，且出货精灵本身有家族池，即注册在某方案 shinies 中）
+ *   'attr'   — 属性池（同属混刷/单刷的非家族精灵，或单刷「无家族池精灵」的同属情况）
+ *   'world'  — 世界池（跨属混刷；或属性不匹配的情况）
  *
  * 规则（按果实来判断，而非 category）：
  *   1. 只有1种果实（单刷）：
- *      - 目标精灵（spiritA/spiritB）污染 → family
- *      - 同属性非目标精灵 → attr
- *      - 其他 → world
+ *      a. 出货精灵「有家族池」（存在于任意方案的 shinies 里）：
+ *         - 是目标精灵（spiritA/spiritB）→ family
+ *         - 同属性非目标精灵 → attr
+ *         - 不同属性 → world
+ *      b. 出货精灵「无家族池」（非赛季/非注册精灵，自定义单刷场景）：
+ *         - 直接跳过 family 判断，看果实属性是否与精灵属性匹配
+ *         - 精灵属性与果实属性吻合 → attr
+ *         - 不吻合 → world
  *   2. 多种果实且全部同属性（同属混刷）：
  *      - 任何同属性精灵污染 → attr（无家族池！）
  *      - 其他 → world
@@ -350,10 +366,16 @@ export function classifyResultType(resultSpirit, plan) {
   const { isSingleFruit, isSameAttr, fruitAttrId } = analyzePlanFruits(plan);
 
   if (isSingleFruit) {
-    // 单刷方案：先判断是否是目标精灵（家族池）
-    const targetFamilies = [plan.spiritA, plan.spiritB].filter(Boolean);
-    if (targetFamilies.some(t => fuzzyMatch(t, resultSpirit))) return 'family';
-    // 非目标精灵：按属性判断
+    // 判断该精灵是否存在于任意方案的 shinies（即「有家族池」）
+    const hasFamilyPool = ALL_SHINIES.includes(resultSpirit)
+      || ALL_SHINIES.some(k => fuzzyMatch(k, resultSpirit));
+
+    if (hasFamilyPool) {
+      // 有家族池：先判断是否是本方案的目标精灵
+      const targetFamilies = [plan.spiritA, plan.spiritB].filter(Boolean);
+      if (targetFamilies.some(t => fuzzyMatch(t, resultSpirit))) return 'family';
+    }
+    // 无家族池 or 有家族池但非目标精灵：按属性判断属性池 / 世界池
     if (fruitAttrId) {
       const spiritAttr1 = lookupAttr(resultSpirit);
       const spiritAttr2 = lookupAttr2(resultSpirit);

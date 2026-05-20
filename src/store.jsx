@@ -173,7 +173,7 @@ function reducer(state, action) {
       // jelly（果冻/星辰虫）固定归世界池，不占保底序号（shieldBreakCount 不自增）。
       let breakPool = null;
       if ((action.result === 'polluted' || action.result === 'original') && action.spiritName) {
-        // 同时查内置方案和用户自定义方案（自定义方案 id 形如 user_plan_xxx）
+        // 同时查内置方案（S1+S2）和用户自定义方案（自定义方案 id 形如 user_plan_xxx）
         const plan = PLANS.find(p => p.id === action.planId)
           || (state.userPlanConfig || []).find(p => p.id === action.planId);
         breakPool = classifyPool(action.spiritName, plan);

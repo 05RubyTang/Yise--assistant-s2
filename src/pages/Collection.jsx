@@ -464,9 +464,22 @@ export default function Collection() {
   });
 
   // 弹窗方案只展示当前赛季，避免 S1 的积累方案（spiritA 匹配）混入 S2 图鉴
-  const selectedPlans = selected
-    ? findPlansForSpirit(selected).filter(p => p.season === currentSeason)
-    : [];
+  // 当多个方案果实配置完全相同时，只保留产出精灵最多的那个（去掉单刷冗余版本）
+  const selectedPlans = (() => {
+    if (!selected) return [];
+    const raw = findPlansForSpirit(selected)
+      .filter(p => p.season === currentSeason);
+    // 按「fruitA+fruitB」分组，同果实配置只保留 shinies 最多的方案
+    const fruitKey = p => `${p.fruitA || ''}|${p.fruitB || ''}`;
+    const grouped = {};
+    for (const p of raw) {
+      const key = fruitKey(p);
+      if (!grouped[key] || (p.shinies || []).length > (grouped[key].shinies || []).length) {
+        grouped[key] = p;
+      }
+    }
+    return Object.values(grouped);
+  })();
   const selectedRecords = selected ? getSpiritRecords(selected, state) : [];
   const selectedTag     = selected ? getSpiritTag(selected, currentSeason) : null;
   const isBattlePassSpirit = selected && BATTLE_PASS_SHINIES.includes(selected);

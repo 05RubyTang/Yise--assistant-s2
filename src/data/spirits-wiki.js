@@ -258,6 +258,7 @@ export const SPIRITS_WIKI_IMG = {
   "卡瓦重（雪山附近的样子）": "https://patchwiki.biligame.com/images/rocom/4/47/it101lv362eif65za2mmgzo83xbevhe.png",
   "铠甲虫": "https://patchwiki.biligame.com/images/rocom/6/6e/c2qomiq244hfmlrgiwvd13n0pmn1znj.png",
   "瞌睡王": "https://patchwiki.biligame.com/images/rocom/a/a2/64947rnxu8ncihl37rqldr3653bg57n.png",
+  "睡睡王": "https://patchwiki.biligame.com/images/rocom/a/a2/64947rnxu8ncihl37rqldr3653bg57n.png", // 同家族：瞌睡王（bwiki 暂无专属页面）
   "壳乙螺": "https://patchwiki.biligame.com/images/rocom/9/9e/tefnpfeeyu3n93u9gp0d9sfk11s5tol.png",
   "可爱猿": "https://patchwiki.biligame.com/images/rocom/e/e0/1xsbef59im08o1aui67cvgqp9nr1a58.png",
   "可立鸡": "https://patchwiki.biligame.com/images/rocom/2/2d/9w4l9rr13yoldnqxtppebm3tqovahde.png",

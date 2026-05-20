@@ -1,13 +1,28 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import SpiritAvatar from './SpiritAvatar';
+import { classifyResultType, POOL_TYPE_CONFIG } from '../data/plans';
 
 const getModalRoot = () => document.getElementById('modal-root') || document.body;
+
+/** 根据推导结果返回提示标签的样式配置 */
+function getPoolHint(resultType) {
+  if (!resultType) return null;
+  const cfg = POOL_TYPE_CONFIG[resultType];
+  if (!cfg) return null;
+  const icon = resultType === 'family' ? '✓' : resultType === 'attr' ? '⚡' : '🎲';
+  return { icon, label: cfg.label, tagBg: cfg.tagBg, tagColor: cfg.tagColor, tagBorder: cfg.tagBorder };
+}
 
 export default function ShinySelectModal({ plan, onSelect, onClose, hasTabBar = true }) {
   const hasPoolSpirits = Array.isArray(plan.shinies) && plan.shinies.length > 0;
   const [showInput, setShowInput] = useState(!hasPoolSpirits);
   const [customName, setCustomName] = useState('');
+
+  // 实时推导池类型（输入不为空时才推导）
+  const trimmed = customName.trim();
+  const inferredType = trimmed ? classifyResultType(trimmed, plan) : null;
+  const poolHint = getPoolHint(inferredType);
 
   return createPortal(
     <div className={`modal-overlay${hasTabBar ? '' : ' modal-overlay--no-tab'}`} onClick={onClose}>
@@ -72,35 +87,73 @@ export default function ShinySelectModal({ plan, onSelect, onClose, hasTabBar = 
             <span style={{ fontWeight: 700 }}>其他精灵（手动输入）</span>
           </button>
         ) : (
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input
-              type="text"
-              value={customName}
-              onChange={e => setCustomName(e.target.value)}
-              placeholder="输入精灵名称"
-              autoFocus
-              className="input-field"
-              style={{ flex: 1 }}
-            />
-            <button
-              disabled={!customName.trim()}
-              onClick={() => customName.trim() && onSelect(customName.trim())}
-              style={{
-                flexShrink: 0,
-                padding: '11px 16px',
-                borderRadius: 'var(--radius-sm)',
-                border: '2px solid #2B2A2E',
-                background: customName.trim() ? '#2B2A2E' : '#B0A898',
-                color: '#FBF7EC',
-                fontWeight: 800, fontSize: 13,
-                fontFamily: 'var(--font-body)',
-                cursor: customName.trim() ? 'pointer' : 'not-allowed',
-                boxShadow: customName.trim() ? '0 2px 0 #111014' : 'none',
-                transition: 'all 0.15s',
-              }}
-            >
-              确认
-            </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                type="text"
+                value={customName}
+                onChange={e => setCustomName(e.target.value)}
+                placeholder="输入精灵名称"
+                autoFocus
+                className="input-field"
+                style={{ flex: 1 }}
+              />
+              <button
+                disabled={!trimmed}
+                onClick={() => trimmed && onSelect(trimmed)}
+                style={{
+                  flexShrink: 0,
+                  padding: '11px 16px',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '2px solid #2B2A2E',
+                  background: trimmed ? '#2B2A2E' : '#B0A898',
+                  color: '#FBF7EC',
+                  fontWeight: 800, fontSize: 13,
+                  fontFamily: 'var(--font-body)',
+                  cursor: trimmed ? 'pointer' : 'not-allowed',
+                  boxShadow: trimmed ? '0 2px 0 #111014' : 'none',
+                  transition: 'all 0.15s',
+                }}
+              >
+                确认
+              </button>
+            </div>
+
+            {/* 实时池类型推导提示 */}
+            {poolHint && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '7px 10px', borderRadius: 8,
+                background: poolHint.tagBg,
+                border: `1px solid ${poolHint.tagBorder}`,
+              }}>
+                <span style={{ fontSize: 13 }}>{poolHint.icon}</span>
+                <div style={{ flex: 1 }}>
+                  <span style={{
+                    fontSize: 11, fontWeight: 800,
+                    color: poolHint.tagColor,
+                  }}>
+                    预计：{poolHint.label}
+                  </span>
+                  {inferredType === 'attr' && (
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 5 }}>
+                      精灵属性与当前果实属系匹配
+                    </span>
+                  )}
+                  {inferredType === 'world' && (
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 5 }}>
+                      属性不匹配或无法识别
+                    </span>
+                  )}
+                  {inferredType === 'family' && (
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 5 }}>
+                      该精灵在本方案家族内
+                    </span>
+                  )}
+                </div>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', opacity: 0.7 }}>可覆盖</span>
+              </div>
+            )}
           </div>
         )}
 

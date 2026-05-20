@@ -192,6 +192,21 @@ export const FRUITS_WIKI_IMG = {
   // 独角兽系
   "独角兽果实":   "https://patchwiki.biligame.com/images/rocom/4/4e/jzb1butqad19cd2grife4yzab1el3l8.png", // 同：小独角兽果实
 
+  // 毒系（厉毒修萝 = 厉毒小萝同家族）
+  "厉毒修萝果实": "https://patchwiki.biligame.com/images/rocom/8/85/kmne5hstyb8itjy9btrxyke9teixr5a.png", // 同家族：厉毒小萝果实
+
+  // 冰系（电企鹅 = 小电企鹅同家族）
+  "电企鹅果实":   "https://patchwiki.biligame.com/images/rocom/e/eb/2ko1xdzesjhz4kd02yein10nyr7szfj.png", // 同家族：小电企鹅果实
+
+  // 普通系（睡睡王 = 白发懒人同家族）
+  "睡睡王果实":   "https://patchwiki.biligame.com/images/rocom/f/f3/cmp70nzeg6mugres4ho9cs4ld0i6lxj.png", // 同家族：白发懒人果实
+
+  // 萌系（梦想三三 = 逗逗同家族）
+  "梦想三三果实": "https://patchwiki.biligame.com/images/rocom/d/d8/ngi3dgaw7l81vas6aejm9rg3kjz7lj0.png", // 同家族：逗逗果实
+
+  // 光系（晶石蜗 = 矿晶虫同家族）
+  "晶石蜗果实":   "https://patchwiki.biligame.com/images/rocom/c/c2/dsxzve16bn3luo2qqipibxkop6mdr0b.png", // 同家族：矿晶虫果实
+
   // 疾光千兽 = 犀角鸟同家族；绒仙子 = 绒绒同家族
   "疾光千兽果实": "https://patchwiki.biligame.com/images/rocom/b/ba/0odp3a4u6lcr4iq692dewhef6oilatp.png", // 同家族：犀角鸟果实
   "绒仙子果实":   "https://patchwiki.biligame.com/images/rocom/4/4d/ki369linoroontjldq0l64s8dfehl43.png", // 同家族：绒绒果实

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../store';
-import { PLANS, classifyResultType, getPlanAttrId, computeFamilyPool, resolvePlanIconImg, ATTR_LABEL } from '../data/plans';
+import { PLANS, S2_PLANS, classifyResultType, getPlanAttrId, computeFamilyPool, resolvePlanIconImg, ATTR_LABEL, ALL_SHINIES, analyzePlanFruits, SPIRIT_ATTR1 } from '../data/plans';
 import SpiritAvatar from '../components/SpiritAvatar';
 import PlanIcon from '../components/PlanIcon';
 import { FruitLine } from '../components/FruitTag';
@@ -13,6 +13,7 @@ export default function Recorder({ planId, navigate }) {
   const { state, dispatch, poolCounts } = useStore();
   const task = (state.activeTasks || []).find(t => t.planId === planId);
   const rawPlan = PLANS.find(p => p.id === planId)
+    || S2_PLANS.find(p => p.id === planId)
     || (state.userPlanConfig || []).find(p => p.id === planId);
   // 标准化：自定义方案继承基础属性方案的图标
   const attrBase = rawPlan?.attrId ? PLANS.find(p => p.id === rawPlan.attrId) : null;
@@ -989,6 +990,42 @@ export default function Recorder({ planId, navigate }) {
         const ATTR_LIMIT = 80;
         const WORLD_LIMIT = 80;
 
+        // 判断当前方案是否有家族池保底：
+        // spiritA 在任意方案的 shinies 列表中，说明系统登记了该精灵的家族池
+        const spiritAName = plan.spiritA || '';
+        const spiritBName = plan.spiritB || '';
+        const hasFamilyPool = spiritAName
+          ? (ALL_SHINIES.includes(spiritAName) || ALL_SHINIES.some(k => k.includes(spiritAName) || spiritAName.includes(k)))
+          : plan.shinies?.length > 0;
+        // spiritB 同理（若存在）
+        const spiritBInPool = spiritBName
+          ? (ALL_SHINIES.includes(spiritBName) || ALL_SHINIES.some(k => k.includes(spiritBName) || spiritBName.includes(k)))
+          : false;
+        const showFamilyPool = hasFamilyPool || spiritBInPool || plan.shinies?.length > 0;
+
+        // 无家族池时：根据果实属性判断精灵的出货池归属
+        // fruitAttrId 有值 → 单果/同属混刷 → 精灵属性若与果实属性一致则归属系池，否则世界池
+        // fruitAttrId 无值 → 跨属混刷 → 一律世界池
+        const { fruitAttrId } = analyzePlanFruits(plan);
+        // 查询精灵A的第一属性（用于判断归属）
+        const spiritAttr1 = (() => {
+          const name = spiritAName;
+          if (!name) return null;
+          // 精确匹配
+          if (SPIRIT_ATTR1[name]) return SPIRIT_ATTR1[name];
+          // 模糊匹配
+          for (const [k, v] of Object.entries(SPIRIT_ATTR1)) {
+            if (k.includes(name) || name.includes(k)) return v;
+          }
+          return null;
+        })();
+        // 无家族池时，判断出货落入属系池还是世界池
+        // fruitAttrId 存在且与精灵属性一致 → 属系池；否则 → 世界池
+        const noFamilyGoesAttr = !showFamilyPool && fruitAttrId && spiritAttr1 === fruitAttrId;
+        const noFamilyGoesWorld = !showFamilyPool && !noFamilyGoesAttr;
+        // 属系池标签（用于无家族池场景提示）
+        const noFamilyAttrLabel = fruitAttrId ? (ATTR_LABEL[fruitAttrId] || fruitAttrId) : null;
+
         // 单条进度行（内联组件）
         const MiniPoolRow = ({ dotColor, label, count, limit }) => {
           const pct = Math.min(count / limit, 1);
@@ -1032,12 +1069,30 @@ export default function Recorder({ planId, navigate }) {
               三池实时进度
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-              <MiniPoolRow
-                dotColor="#C8830A"
-                label={`家族池`}
-                count={familyPool}
-                limit={FAMILY_LIMIT}
-              />
+              {showFamilyPool ? (
+                <MiniPoolRow
+                  dotColor="#C8830A"
+                  label="家族池"
+                  count={familyPool}
+                  limit={FAMILY_LIMIT}
+                />
+              ) : (
+                /* 无家族池：根据属性精确判断归入属系池或世界池 */
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <span style={{
+                    width: 7, height: 7, borderRadius: '50%',
+                    background: 'rgba(103,93,83,0.25)', flexShrink: 0, display: 'inline-block',
+                  }} />
+                  <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(103,93,83,0.4)', flexShrink: 0, minWidth: 42 }}>家族池</span>
+                  <span style={{ fontSize: 9, color: 'rgba(103,93,83,0.45)', fontStyle: 'italic' }}>
+                    无保底 · 出货计入
+                    {noFamilyGoesAttr
+                      ? <span style={{ color: '#C8830A', fontStyle: 'normal', fontWeight: 700 }}> {noFamilyAttrLabel}池</span>
+                      : <span style={{ color: '#7E57C2', fontStyle: 'normal', fontWeight: 700 }}> 世界池</span>
+                    }
+                  </span>
+                </div>
+              )}
               {attrId && (
                 <MiniPoolRow
                   dotColor={plan.color || '#E8A020'}
@@ -1054,81 +1109,123 @@ export default function Recorder({ planId, navigate }) {
               />
             </div>
             <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 7, lineHeight: 1.5 }}>
-              家族池出货后重置 · 系别池 / 世界池全局累计不清空
+              {showFamilyPool
+                ? '家族池出货后重置 · 系别池 / 世界池全局累计不清空'
+                : noFamilyGoesAttr
+                  ? `出货计入${noFamilyAttrLabel}池（全局累计）· 世界池同步累计`
+                  : '出货计入世界池（全局累计）· 系别池不受影响'}
             </div>
           </div>
         );
       })()}
 
       {/* 三池机制说明 */}
-      <div style={{
-        margin: '4px 16px 16px',
-        borderRadius: 12,
-        border: '1.5px solid rgba(103,93,83,0.18)',
-        background: '#F8F4EC',
-        overflow: 'hidden',
-      }}>
-        {/* 标题栏 */}
-        <div style={{
-          background: '#2B2A2E',
-          padding: '8px 14px',
-          fontSize: 11, fontWeight: 800, color: '#FBC839',
-          letterSpacing: 1, fontFamily: 'var(--font-display)',
-        }}>
-          📖 官方三池机制说明
-        </div>
-        {/* 内容 */}
-        <div style={{ padding: '10px 14px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {[
-            {
-              dot: '#C8830A',
-              bg: '#FFF3CC',
-              border: '#C8A020',
+      {(() => {
+        // 判断是否有家族池（与仪表盘保持一致，重新计算）
+        const spiritAName = plan.spiritA || '';
+        const spiritBName = plan.spiritB || '';
+        const hasFamilyPoolCard = spiritAName
+          ? (ALL_SHINIES.includes(spiritAName) || ALL_SHINIES.some(k => k.includes(spiritAName) || spiritAName.includes(k)))
+          : plan.shinies?.length > 0;
+        const spiritBInPoolCard = spiritBName
+          ? (ALL_SHINIES.includes(spiritBName) || ALL_SHINIES.some(k => k.includes(spiritBName) || spiritBName.includes(k)))
+          : false;
+        const showFamilyPoolCard = hasFamilyPoolCard || spiritBInPoolCard || plan.shinies?.length > 0;
+
+        // 无家族池时：判断精灵属性 vs 果实属性，确定出货归属
+        const { fruitAttrId: fruitAttrIdCard } = analyzePlanFruits(plan);
+        const spiritAttr1Card = (() => {
+          const name = spiritAName;
+          if (!name) return null;
+          if (SPIRIT_ATTR1[name]) return SPIRIT_ATTR1[name];
+          for (const [k, v] of Object.entries(SPIRIT_ATTR1)) {
+            if (k.includes(name) || name.includes(k)) return v;
+          }
+          return null;
+        })();
+        const noFamilyGoesAttrCard = !showFamilyPoolCard && fruitAttrIdCard && spiritAttr1Card === fruitAttrIdCard;
+        const noFamilyAttrLabelCard = fruitAttrIdCard ? (ATTR_LABEL[fruitAttrIdCard] || fruitAttrIdCard) : null;
+
+        const familyCardConfig = showFamilyPoolCard
+          ? {
+              dot: '#C8830A', bg: '#FFF3CC', border: '#C8A020',
               label: '家族池',
               rule: `放置${plan.spiritA || '对应精灵'}${plan.spiritB ? `或${plan.spiritB}` : ''}的果实，80次必出其异色`,
               note: '出货后属性池&世界池计数不重置，可继续累积',
-            },
-            {
-              dot: '#E8A020',
-              bg: '#FFF8E8',
-              border: '#E8C060',
-              label: '属性池',
-              rule: `同属性其他精灵，80次必出`,
-              note: '出货后家族池&世界池计数不重置，可继续累积',
-            },
-            {
-              dot: '#7E57C2',
-              bg: '#F0EAFF',
-              border: 'rgba(126,87,194,0.3)',
-              label: '世界池',
-              rule: '所有其他精灵，80次必出',
-              note: '出货后家族池&属性池计数不重置，可继续累积',
-            },
-          ].map(({ dot, bg, border, label, rule, note }) => (
-            <div key={label} style={{
-              display: 'flex', alignItems: 'flex-start', gap: 9,
-              padding: '8px 10px', borderRadius: 8,
-              background: bg, border: `1px solid ${border}`,
+            }
+          : {
+              dot: 'rgba(103,93,83,0.3)', bg: 'rgba(103,93,83,0.04)', border: 'rgba(103,93,83,0.12)',
+              label: '家族池',
+              rule: `${plan.spiritA || '当前精灵'}不在任意方案家族列表中，无家族池保底`,
+              note: noFamilyGoesAttrCard
+                ? `出货将计入${noFamilyAttrLabelCard}池（精灵属性与果实属性相符）`
+                : '出货将计入世界池（精灵属性与果实属性不符或跨属混刷）',
+            };
+
+        return (
+          <div style={{
+            margin: '4px 16px 16px',
+            borderRadius: 12,
+            border: '1.5px solid rgba(103,93,83,0.18)',
+            background: '#F8F4EC',
+            overflow: 'hidden',
+          }}>
+            {/* 标题栏 */}
+            <div style={{
+              background: '#2B2A2E',
+              padding: '8px 14px',
+              fontSize: 11, fontWeight: 800, color: '#FBC839',
+              letterSpacing: 1, fontFamily: 'var(--font-display)',
             }}>
-              <div style={{
-                width: 8, height: 8, borderRadius: '50%',
-                background: dot, flexShrink: 0, marginTop: 4,
-              }} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 11, fontWeight: 800, color: '#2B2A2E', marginBottom: 2 }}>
-                  {label}
-                </div>
-                <div style={{ fontSize: 10, color: 'var(--text-light)', lineHeight: 1.6 }}>
-                  {rule}
-                </div>
-                <div style={{ fontSize: 10, color: dot, fontWeight: 700, marginTop: 2 }}>
-                  ↳ {note}
-                </div>
-              </div>
+              📖 官方三池机制说明
             </div>
-          ))}
-        </div>
-      </div>
+            {/* 内容 */}
+            <div style={{ padding: '10px 14px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[
+                familyCardConfig,
+                {
+                  dot: '#E8A020',
+                  bg: '#FFF8E8',
+                  border: '#E8C060',
+                  label: '属性池',
+                  rule: `同属性其他精灵，80次必出`,
+                  note: '出货后家族池&世界池计数不重置，可继续累积',
+                },
+                {
+                  dot: '#7E57C2',
+                  bg: '#F0EAFF',
+                  border: 'rgba(126,87,194,0.3)',
+                  label: '世界池',
+                  rule: '所有其他精灵，80次必出',
+                  note: '出货后家族池&属性池计数不重置，可继续累积',
+                },
+              ].map(({ dot, bg, border, label, rule, note }) => (
+                <div key={label} style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 9,
+                  padding: '8px 10px', borderRadius: 8,
+                  background: bg, border: `1px solid ${border}`,
+                }}>
+                  <div style={{
+                    width: 8, height: 8, borderRadius: '50%',
+                    background: dot, flexShrink: 0, marginTop: 4,
+                  }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: showFamilyPoolCard || label !== '家族池' ? '#2B2A2E' : 'rgba(103,93,83,0.5)', marginBottom: 2 }}>
+                      {label}
+                    </div>
+                    <div style={{ fontSize: 10, color: showFamilyPoolCard || label !== '家族池' ? 'var(--text-light)' : 'rgba(103,93,83,0.4)', lineHeight: 1.6 }}>
+                      {rule}
+                    </div>
+                    <div style={{ fontSize: 10, color: dot, fontWeight: 700, marginTop: 2 }}>
+                      ↳ {note}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {showResult && (
         <ResultModal onResult={handleResult} onClose={() => setShowResult(false)} hasTabBar={false} />

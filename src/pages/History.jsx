@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore } from '../store';
-import { PLANS, inferPoolType, POOL_TYPE_CONFIG, getBallBySpirit, getBallByPlan, getAttrIdBySpirit } from '../data/plans';
+import { PLANS, inferPoolType, POOL_TYPE_CONFIG, getBallBySpirit, getBallByPlan, getAttrIdBySpirit, getPlanAttrId, ATTR_LABEL } from '../data/plans';
 import PlanIcon from '../components/PlanIcon';
 import SpiritAvatar from '../components/SpiritAvatar';
 import ShieldDots from '../components/ShieldDots';
@@ -286,61 +286,51 @@ function TaskDetailPage({ task, onBack, userPlanConfig }) {
           <div style={{ margin: '0 16px 12px', borderRadius: 18, overflow: 'hidden', position: 'relative' }}>
             <div style={{ padding: '0 16px 14px' }}>
               <div style={{ marginBottom: 10 }}>
-                <span className="font-subtitle" style={{ fontSize: 14, fontWeight: 800, color: '#675D53', letterSpacing: 0.8 }}>本次刷取中各池累计数</span>
+                <span className="font-subtitle" style={{ fontSize: 14, fontWeight: 800, color: '#675D53', letterSpacing: 0.8 }}>本次刷取各污染分布</span>
                 <div style={{ fontSize: 10, color: '#9B8F84', fontWeight: 500, marginTop: 2 }}>
-                  本次刷取期间各池实际触发次数（非实时保底进度，仅作留念参考）
+                  本次刷取期间各池实际触发污染次数
                 </div>
               </div>
-              <div style={{ height: 1, background: '#D3CFC8', marginBottom: 12 }} />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-                {[
-                  { key: 'family', label: '家族池', cap: 80, color: '#C8830A', tagBg: '#FFF3CC', border: '#C8A020' },
-                  { key: 'attr',   label: '系别池', cap: 80, color: '#7E4E00', tagBg: '#FFE8B0', border: '#D4940A' },
-                  { key: 'world',  label: '世界池', cap: 80, color: '#5B3A9E', tagBg: '#EFE0FF', border: '#9B6DD4' },
-                ].map(({ key, label, cap, color, tagBg, border }) => {
-                  const val = poolSnapshot[key];
-                  const pct = Math.min(100, Math.round((val / cap) * 100));
-                  const isShinyPool = (
-                    (key === 'family' && (poolType === 'family' || poolType === 'pool')) ||
-                    key === poolType
-                  );
-                  return (
-                    <div key={key} style={{
-                      background: tagBg,
-                      border: `1.5px solid ${border}`,
-                      borderRadius: 12,
-                      padding: '10px 10px 8px',
-                      position: 'relative',
-                      textAlign: 'center',
-                    }}>
-                      {/* 出货池角标 */}
-                      {isShinyPool && (
-                        <div style={{
-                          position: 'absolute', top: 5, right: 6,
-                          fontSize: 11, lineHeight: 1,
-                          filter: 'drop-shadow(0 0 3px rgba(251,200,57,0.9))',
-                        }}>✨</div>
-                      )}
-                      <div style={{ fontSize: 10, fontWeight: 700, color, marginBottom: 4 }}>{label}</div>
-                      {/* 进度条 */}
-                      <div style={{
-                        height: 5, borderRadius: 3,
-                        background: 'rgba(103,93,83,0.15)',
-                        marginBottom: 5, overflow: 'hidden',
-                      }}>
-                        <div style={{
-                          height: '100%',
-                          width: `${pct}%`,
-                          borderRadius: 3,
-                          background: color,
-                          transition: 'width 0.3s',
-                        }} />
-                      </div>
-                      <div className="font-subtitle" style={{ fontSize: 18, fontWeight: 900, color, lineHeight: 1 }}>{val}</div>
-                      <div style={{ fontSize: 10, color: '#9B8F84', marginTop: 2 }}>/ {cap} 次</div>
-                    </div>
-                  );
-                })}
+              <div style={{ height: 1, background: '#D3CFC8', marginBottom: 14 }} />
+              {/* 横排三池 */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around' }}>
+                {(() => {
+                  const planAttrId = getPlanAttrId(plan);
+                  const pools = [
+                    { key: 'family', label: '家族池', color: '#C8830A' },
+                    { key: 'attr',   label: `${ATTR_LABEL[planAttrId] || '系别'}池`, color: '#9A6010' },
+                    { key: 'world',  label: '世界池', color: '#5B3A9E' },
+                  ];
+                  return pools.map(({ key, label, color }, i) => {
+                    const val = poolSnapshot[key];
+                    const isShinyPool =
+                      (key === 'family' && (poolType === 'family' || poolType === 'pool')) ||
+                      key === poolType;
+                    const textColor = isShinyPool ? color : '#2B2A2E';
+                    return (
+                      <React.Fragment key={key}>
+                        {i > 0 && (
+                          <div style={{ width: 1, height: 24, background: '#D3CFC8', flexShrink: 0 }} />
+                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'center' }}>
+                          <span style={{
+                            fontSize: 13,
+                            fontWeight: 700,
+                            color: textColor,
+                            fontFamily: 'var(--font-display)',
+                            lineHeight: 1,
+                          }}>{label}</span>
+                          <span className="font-subtitle" style={{
+                            fontSize: 28,
+                            fontWeight: 900,
+                            color: textColor,
+                            lineHeight: 1,
+                          }}>{val}</span>
+                        </div>
+                      </React.Fragment>
+                    );
+                  });
+                })()}
               </div>
             </div>
           </div>

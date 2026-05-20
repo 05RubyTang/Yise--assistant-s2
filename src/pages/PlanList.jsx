@@ -382,19 +382,30 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
   const { state } = useStore();
   const currentSeason = state.currentSeason || 'S2';
   const [filter, setFilter] = useState('all');
-  // 已确认生效的筛选状态
+  // 已确认生效的筛选状态（library 模式）
   const [fruitFilter, setFruitFilter] = useState('all'); // 'all' | 'ready' | 'missing'
   const [attrFilter, setAttrFilter]   = useState('all'); // 'all' | 'fire' | 'ice' | ...
-  // 筛选弹窗开关 + 弹窗内临时状态（点确认才同步到上面）
+  // 筛选弹窗开关 + 弹窗内临时状态（点确认才同步到上面）（library 模式）
   const [showFilterModal, setShowFilterModal]       = useState(false);
   const [tempFruitFilter, setTempFruitFilter]       = useState('all');
   const [tempAttrFilter,  setTempAttrFilter]        = useState('all');
   const [pickerTab, setPickerTab] = useState('all');
+  // picker 模式独立筛选 state
+  const [pickerFruitFilter, setPickerFruitFilter]         = useState('all');
+  const [pickerAttrFilter,  setPickerAttrFilter]          = useState('all');
+  const [showPickerFilterModal, setShowPickerFilterModal] = useState(false);
+  const [pickerTempFruit,  setPickerTempFruit]            = useState('all');
+  const [pickerTempAttr,   setPickerTempAttr]             = useState('all');
 
   const openFilterModal  = () => { setTempFruitFilter(fruitFilter); setTempAttrFilter(attrFilter); setShowFilterModal(true); };
   const confirmFilter    = () => { setFruitFilter(tempFruitFilter); setAttrFilter(tempAttrFilter); setShowFilterModal(false); };
   const resetTempFilters = () => { setTempFruitFilter('all'); setTempAttrFilter('all'); };
   const activeFilterCount = (fruitFilter !== 'all' ? 1 : 0) + (attrFilter !== 'all' ? 1 : 0);
+
+  const openPickerFilterModal  = () => { setPickerTempFruit(pickerFruitFilter); setPickerTempAttr(pickerAttrFilter); setShowPickerFilterModal(true); };
+  const confirmPickerFilter    = () => { setPickerFruitFilter(pickerTempFruit); setPickerAttrFilter(pickerTempAttr); setShowPickerFilterModal(false); };
+  const resetPickerTempFilters = () => { setPickerTempFruit('all'); setPickerTempAttr('all'); };
+  const pickerActiveFilterCount = (pickerFruitFilter !== 'all' ? 1 : 0) + (pickerAttrFilter !== 'all' ? 1 : 0);
 
   // ─── 按赛季筛选方案 ───────────────────────────────────────────────────────
   // 判断是否为赛季奇遇方案：S1 用 season: true，S2 用 category: 'seasonal'
@@ -469,7 +480,7 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
   const showSingle    = filter === 'all' || filter === 'single';
   const showCustomLib = filter === 'all' || filter === 'custom';
 
-  // picker 模式：带 tab 筛选的选方案页
+  // picker 模式：带 tab 筛选 + 高级筛选的选方案页
   if (mode === 'picker') {
     const PICKER_TABS = [
       { key: 'all',     label: '全部' },
@@ -484,7 +495,30 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
     const showSingle = pickerTab === 'all' || pickerTab === 'single';
     const showCustom = pickerTab === 'all' || pickerTab === 'custom';
 
+    // picker 二维筛选（与 library 模式 applyFilters 同逻辑）
+    const applyPickerFilters = (arr) => arr.filter(x => {
+      if (pickerFruitFilter === 'ready'   && !x.fruitReady) return false;
+      if (pickerFruitFilter === 'missing' &&  x.fruitReady) return false;
+      if (pickerAttrFilter !== 'all' && getPlanAttr(x.plan) !== pickerAttrFilter) return false;
+      return true;
+    });
+
+    const pickerAttrWithStatus   = attrWithStatus;
+    const pickerSeasonWithStatus = seasonWithStatus;
+    const pickerSingleWithStatus = singleWithStatus;
+
+    const pickerFilteredAttr   = applyPickerFilters(pickerAttrWithStatus);
+    const pickerFilteredSeason = applyPickerFilters(pickerSeasonWithStatus);
+    const pickerFilteredSingle = applyPickerFilters(pickerSingleWithStatus);
+    const pickerUserPlansWithFruit = userPlans.map(p => ({ plan: p, fruitReady: isFruitReady(p, ownedFruits) }));
+    const pickerFilteredUser   = applyPickerFilters(pickerUserPlansWithFruit).map(x => x.plan);
+
+    const pickerNoResults = pickerActiveFilterCount > 0
+      && pickerFilteredAttr.length === 0 && pickerFilteredSeason.length === 0
+      && pickerFilteredSingle.length === 0 && pickerFilteredUser.length === 0;
+
     return (
+      <>
       <div style={{ position: 'relative', paddingBottom: 24 }}>
         {/* 页头 */}
         <div style={{ padding: '20px 16px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -500,7 +534,7 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
         </div>
 
         {/* ── Tab 筛选栏 ── */}
-        <div style={{ display: 'flex', gap: 6, padding: '0 16px 12px', overflowX: 'auto', scrollbarWidth: 'none' }}>
+        <div style={{ display: 'flex', gap: 6, padding: '0 16px 8px', overflowX: 'auto', scrollbarWidth: 'none' }}>
           {PICKER_TABS.map(t => {
             const isActive = pickerTab === t.key;
             const isCustomTab = t.key === 'custom';
@@ -526,15 +560,69 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
           })}
         </div>
 
+        {/* ── 高级筛选行（摘要标签 + ⚙筛选按钮） ── */}
+        <div style={{ display: 'flex', alignItems: 'center', padding: '0 16px 12px', gap: 8 }}>
+          {pickerActiveFilterCount > 0 && (
+            <div style={{ display: 'flex', gap: 5, flex: 1, flexWrap: 'wrap' }}>
+              {pickerFruitFilter !== 'all' && (
+                <span style={{
+                  fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 20,
+                  background: pickerFruitFilter === 'ready' ? 'rgba(75,156,70,0.12)' : 'rgba(176,88,0,0.10)',
+                  color: pickerFruitFilter === 'ready' ? '#4B9C46' : '#B05800',
+                  border: `1px solid ${pickerFruitFilter === 'ready' ? 'rgba(75,156,70,0.35)' : 'rgba(176,88,0,0.3)'}`,
+                }}>
+                  {pickerFruitFilter === 'ready' ? '✓ 果实已集齐' : '✗ 果实未集齐'}
+                </span>
+              )}
+              {pickerAttrFilter !== 'all' && (() => {
+                const opt = ATTR_OPTIONS.find(o => o.key === pickerAttrFilter);
+                return opt ? (
+                  <span style={{
+                    fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 20,
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    background: opt.color ? `${opt.color}18` : 'rgba(103,93,83,0.1)',
+                    color: opt.color || 'var(--text-muted)',
+                    border: `1px solid ${opt.color ? `${opt.color}55` : 'var(--divider)'}`,
+                  }}>
+                    {opt.img && <img src={`${import.meta.env.BASE_URL}attrs18/${opt.img}`} alt="" style={{ width: 14, height: 14, objectFit: 'contain' }} />}
+                    {opt.label}
+                  </span>
+                ) : null;
+              })()}
+            </div>
+          )}
+          {pickerActiveFilterCount === 0 && (
+            <span style={{ flex: 1, fontSize: 11, color: 'var(--text-muted)', opacity: 0.6 }}>可按属系 / 果实收录情况筛选</span>
+          )}
+          <button onClick={openPickerFilterModal} style={{
+            flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5,
+            padding: '5px 12px', borderRadius: 20, cursor: 'pointer',
+            fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-body)',
+            border: pickerActiveFilterCount > 0 ? '2px solid var(--text)' : '1.5px solid var(--divider)',
+            background: pickerActiveFilterCount > 0 ? 'var(--text)' : 'var(--card)',
+            color: pickerActiveFilterCount > 0 ? 'var(--bg)' : 'var(--text-muted)',
+            transition: 'all 0.15s',
+          }}>
+            ⚙ 筛选
+            {pickerActiveFilterCount > 0 && (
+              <span style={{
+                fontSize: 9, fontWeight: 900,
+                background: '#C8830A', color: '#fff',
+                borderRadius: '50%', width: 14, height: 14,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              }}>{pickerActiveFilterCount}</span>
+            )}
+          </button>
+        </div>
+
         {/* ── 属性混抓 ── */}
-        {showAttr && (
+        {showAttr && pickerFilteredAttr.length > 0 && (
           <>
             {pickerTab === 'all' && (
               <div style={{ padding: '0 16px 7px', fontSize: 12, fontWeight: 800, color: 'var(--text-muted)' }}>属性混抓</div>
             )}
-            {attrPlans.map(plan => (
+            {pickerFilteredAttr.map(({ plan, fruitReady }) => (
               plan.noShiny ? (
-                // noShiny 方案（水系/萌系）用 AttrPlanCard，正确读取 poolShinies
                 <AttrPlanCard
                   key={plan.id}
                   plan={plan}
@@ -543,6 +631,7 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
                   completedTasks={state.completedTasks}
                   activeTasks={state.activeTasks}
                   pinned={activePlanIds.has(plan.id)}
+                  fruitReady={fruitReady}
                   onClick={() => navigate('checklist', { planId: plan.id, basePlanId: plan.id })}
                 />
               ) : (
@@ -560,13 +649,13 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
         )}
 
         {/* ── 单刷奇遇（赛季） ── */}
-        {showSeason && (
+        {showSeason && pickerFilteredSeason.length > 0 && (
           <>
             {pickerTab === 'all' && (
-              <div style={{ padding: showAttr ? '8px 16px 7px' : '0 16px 7px', fontSize: 12, fontWeight: 800, color: 'var(--text-muted)' }}>单刷奇遇</div>
+              <div style={{ padding: showAttr && pickerFilteredAttr.length > 0 ? '8px 16px 7px' : '0 16px 7px', fontSize: 12, fontWeight: 800, color: 'var(--text-muted)' }}>单刷奇遇</div>
             )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 8px', padding: '0 16px' }}>
-              {seasonPlans.map(plan => (
+              {pickerFilteredSeason.map(({ plan, fruitReady }) => (
                 <PlanCard key={plan.id} plan={plan} spirits={state.spirits}
                   isActive={activePlanIds.has(plan.id)} compact
                   completedTasks={state.completedTasks}
@@ -578,13 +667,13 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
         )}
 
         {/* ── 单刷异色（普通异色单刷） ── */}
-        {showSingle && (
+        {showSingle && pickerFilteredSingle.length > 0 && (
           <>
             {pickerTab === 'all' && (
-              <div style={{ padding: (showAttr || showSeason) ? '8px 16px 7px' : '0 16px 7px', fontSize: 12, fontWeight: 800, color: 'var(--text-muted)' }}>单刷异色</div>
+              <div style={{ padding: ((showAttr && pickerFilteredAttr.length > 0) || (showSeason && pickerFilteredSeason.length > 0)) ? '8px 16px 7px' : '0 16px 7px', fontSize: 12, fontWeight: 800, color: 'var(--text-muted)' }}>单刷异色</div>
             )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 8px', padding: '0 16px' }}>
-              {singleSpiritPlans.map(plan => (
+              {pickerFilteredSingle.map(({ plan, fruitReady }) => (
                 <PlanCard key={plan.id} plan={plan} spirits={state.spirits}
                   isActive={activePlanIds.has(plan.id)} compact
                   completedTasks={state.completedTasks}
@@ -598,13 +687,12 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
         {/* ── 自定义方案 ── */}
         {showCustom && (
           <>
-            {pickerTab === 'all' && (
-              <div style={{ padding: (showAttr || showSeason || showSingle) ? '8px 16px 7px' : '0 16px 7px', fontSize: 12, fontWeight: 800, color: 'var(--text-muted)' }}>自定义方案</div>
+            {pickerTab === 'all' && pickerFilteredUser.length > 0 && (
+              <div style={{ padding: ((showAttr && pickerFilteredAttr.length > 0) || (showSeason && pickerFilteredSeason.length > 0) || (showSingle && pickerFilteredSingle.length > 0)) ? '8px 16px 7px' : '0 16px 7px', fontSize: 12, fontWeight: 800, color: 'var(--text-muted)' }}>自定义方案</div>
             )}
-            {/* 已有的自定义方案列表 */}
-            {userPlans.length > 0 && (
+            {pickerFilteredUser.length > 0 && (
               <div style={{ padding: '0 16px' }}>
-                {userPlans.map(plan => {
+                {pickerFilteredUser.map(plan => {
                   const isActive = activePlanIds.has(plan.id);
                   return (
                   <div
@@ -659,7 +747,112 @@ export default function PlanList({ navigate, mode = 'library', goBack }) {
             )}
           </>
         )}
+
+        {/* ── 筛选后无结果提示 ── */}
+        {pickerNoResults && (
+          <div style={{ textAlign: 'center', padding: '32px 24px', color: 'var(--text-muted)' }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>🔍</div>
+            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>没有符合条件的方案</div>
+            <div style={{ fontSize: 11, opacity: 0.7 }}>尝试调整筛选条件</div>
+            <button onClick={() => { setPickerFruitFilter('all'); setPickerAttrFilter('all'); }} style={{
+              marginTop: 12, padding: '6px 16px', borderRadius: 20, border: '1.5px solid var(--divider)',
+              background: 'var(--card)', color: 'var(--text-muted)', fontSize: 12, fontWeight: 700,
+              cursor: 'pointer', fontFamily: 'var(--font-body)',
+            }}>清除筛选</button>
+          </div>
+        )}
       </div>
+
+      {/* ── picker 高级筛选弹窗 ── */}
+      {showPickerFilterModal && (
+        <>
+          <div
+            onClick={() => setShowPickerFilterModal(false)}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{
+                position: 'relative', zIndex: 301,
+                background: 'var(--card)', borderRadius: 20,
+                boxShadow: '0 8px 40px rgba(0,0,0,0.22)',
+                display: 'flex', flexDirection: 'column',
+                width: 'min(92vw, 380px)', maxHeight: '80dvh',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 16px 12px', borderBottom: '1px solid var(--divider)' }}>
+                <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--text)', fontFamily: 'var(--font-display)' }}>⚙ 方案筛选</div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <button onClick={resetPickerTempFilters} style={{ border: 'none', background: 'transparent', fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer', fontWeight: 700, fontFamily: 'var(--font-body)' }}>重置</button>
+                  <button onClick={() => setShowPickerFilterModal(false)} style={{ border: 'none', background: 'transparent', fontSize: 16, color: 'var(--text-muted)', cursor: 'pointer', lineHeight: 1, padding: '0 2px' }}>✕</button>
+                </div>
+              </div>
+              <div style={{ overflowY: 'auto', flex: 1, padding: '16px 16px 8px' }}>
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', marginBottom: 10, letterSpacing: 0.5 }}>🌰 果实收录情况</div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {[
+                      { key: 'all',     label: '全部',         color: null },
+                      { key: 'ready',   label: '✓ 已收录齐全', color: '#4B9C46' },
+                      { key: 'missing', label: '✗ 未收录齐全', color: '#B05800' },
+                    ].map(f => {
+                      const active = pickerTempFruit === f.key;
+                      return (
+                        <button key={f.key} onClick={() => setPickerTempFruit(f.key)} style={{
+                          padding: '6px 14px', borderRadius: 20, cursor: 'pointer',
+                          fontSize: 12, fontWeight: active ? 800 : 600,
+                          fontFamily: 'var(--font-body)', transition: 'all 0.15s',
+                          border: active ? `2px solid ${f.color || 'var(--text)'}` : '1.5px solid var(--divider)',
+                          background: active ? (f.color || 'var(--text)') : 'var(--card)',
+                          color: active ? '#fff' : 'var(--text-muted)',
+                        }}>
+                          {f.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', marginBottom: 10, letterSpacing: 0.5 }}>🌈 方案属系</div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {ATTR_OPTIONS.map(opt => {
+                      const active = pickerTempAttr === opt.key;
+                      return (
+                        <button key={opt.key} onClick={() => setPickerTempAttr(opt.key)} style={{
+                          padding: '6px 12px', borderRadius: 20, cursor: 'pointer',
+                          fontSize: 12, fontWeight: active ? 800 : 600,
+                          fontFamily: 'var(--font-body)', transition: 'all 0.15s',
+                          display: 'inline-flex', alignItems: 'center', gap: 5,
+                          border: active ? `2px solid ${opt.color || 'var(--text)'}` : '1.5px solid var(--divider)',
+                          background: active ? (opt.color || 'var(--text)') : 'var(--card)',
+                          color: active ? (opt.key === 'electric' ? '#2B2A2E' : '#fff') : 'var(--text-muted)',
+                        }}>
+                          {opt.img
+                            ? <img src={`${import.meta.env.BASE_URL}attrs18/${opt.img}`} alt="" style={{ width: 16, height: 16, objectFit: 'contain' }} />
+                            : '🌟'
+                          }
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+              <div style={{ padding: '12px 16px 16px', borderTop: '1px solid var(--divider)' }}>
+                <button onClick={confirmPickerFilter} style={{
+                  width: '100%', padding: '12px', borderRadius: 12,
+                  background: 'var(--text)', color: 'var(--bg)',
+                  fontSize: 14, fontWeight: 900, fontFamily: 'var(--font-display)',
+                  border: 'none', cursor: 'pointer', letterSpacing: 0.5,
+                }}>
+                  确认筛选
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+      </>
     );
   }
 

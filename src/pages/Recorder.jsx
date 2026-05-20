@@ -990,6 +990,9 @@ export default function Recorder({ planId, navigate }) {
         const ATTR_LIMIT = 80;
         const WORLD_LIMIT = 80;
 
+        // 混池（forceWorld）方案：只走世界池，无家族池/属系池
+        const isForceWorld = !!plan.forceWorld;
+
         // 判断当前方案是否有家族池保底：
         // spiritA 在任意方案的 shinies 列表中，说明系统登记了该精灵的家族池
         const spiritAName = plan.spiritA || '';
@@ -1001,7 +1004,7 @@ export default function Recorder({ planId, navigate }) {
         const spiritBInPool = spiritBName
           ? (ALL_SHINIES.includes(spiritBName) || ALL_SHINIES.some(k => k.includes(spiritBName) || spiritBName.includes(k)))
           : false;
-        const showFamilyPool = hasFamilyPool || spiritBInPool || plan.shinies?.length > 0;
+        const showFamilyPool = !isForceWorld && (hasFamilyPool || spiritBInPool || plan.shinies?.length > 0);
 
         // 无家族池时：根据果实属性判断精灵的出货池归属
         // fruitAttrId 有值 → 单果/同属混刷 → 精灵属性若与果实属性一致则归属系池，否则世界池
@@ -1021,7 +1024,7 @@ export default function Recorder({ planId, navigate }) {
         })();
         // 无家族池时，判断出货落入属系池还是世界池
         // fruitAttrId 存在且与精灵属性一致 → 属系池；否则 → 世界池
-        const noFamilyGoesAttr = !showFamilyPool && fruitAttrId && spiritAttr1 === fruitAttrId;
+        const noFamilyGoesAttr = !isForceWorld && !showFamilyPool && fruitAttrId && spiritAttr1 === fruitAttrId;
         const noFamilyGoesWorld = !showFamilyPool && !noFamilyGoesAttr;
         // 属系池标签（用于无家族池场景提示）
         const noFamilyAttrLabel = fruitAttrId ? (ATTR_LABEL[fruitAttrId] || fruitAttrId) : null;
@@ -1066,10 +1069,10 @@ export default function Recorder({ planId, navigate }) {
             padding: '10px 14px 10px',
           }}>
             <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', letterSpacing: 0.5, marginBottom: 8 }}>
-              三池实时进度
+              {isForceWorld ? '世界池实时进度' : '三池实时进度'}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-              {showFamilyPool ? (
+              {!isForceWorld && (showFamilyPool ? (
                 <MiniPoolRow
                   dotColor="#C8830A"
                   label="家族池"
@@ -1092,8 +1095,8 @@ export default function Recorder({ planId, navigate }) {
                     }
                   </span>
                 </div>
-              )}
-              {attrId && (
+              ))}
+              {!isForceWorld && attrId && (
                 <MiniPoolRow
                   dotColor={plan.color || '#E8A020'}
                   label={`${ATTR_LABEL[attrId] || attrId}池`}
@@ -1109,11 +1112,13 @@ export default function Recorder({ planId, navigate }) {
               />
             </div>
             <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 7, lineHeight: 1.5 }}>
-              {showFamilyPool
-                ? '家族池出货后重置 · 系别池 / 世界池全局累计不清空'
-                : noFamilyGoesAttr
-                  ? `出货计入${noFamilyAttrLabel}池（全局累计）· 世界池同步累计`
-                  : '出货计入世界池（全局累计）· 系别池不受影响'}
+              {isForceWorld
+                ? '跨属混刷，出货全部计入世界池（全局累计）· 各属系池不受影响'
+                : showFamilyPool
+                  ? '家族池出货后重置 · 系别池 / 世界池全局累计不清空'
+                  : noFamilyGoesAttr
+                    ? `出货计入${noFamilyAttrLabel}池（全局累计）· 世界池同步累计`
+                    : '出货计入世界池（全局累计）· 系别池不受影响'}
             </div>
           </div>
         );
@@ -1121,6 +1126,53 @@ export default function Recorder({ planId, navigate }) {
 
       {/* 三池机制说明 */}
       {(() => {
+        // 混池（forceWorld）方案：只显示世界池说明
+        const isForceWorld = !!plan.forceWorld;
+
+        if (isForceWorld) {
+          return (
+            <div style={{
+              margin: '4px 16px 16px',
+              borderRadius: 12,
+              border: '1.5px solid rgba(103,93,83,0.18)',
+              background: '#F8F4EC',
+              overflow: 'hidden',
+            }}>
+              <div style={{
+                background: '#2B2A2E',
+                padding: '8px 14px',
+                fontSize: 11, fontWeight: 800, color: '#FBC839',
+                letterSpacing: 1, fontFamily: 'var(--font-display)',
+              }}>
+                📖 官方三池机制说明
+              </div>
+              <div style={{ padding: '10px 14px 12px' }}>
+                <div style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 9,
+                  padding: '8px 10px', borderRadius: 8,
+                  background: '#F0EAFF', border: '1px solid rgba(126,87,194,0.3)',
+                }}>
+                  <div style={{
+                    width: 8, height: 8, borderRadius: '50%',
+                    background: '#7E57C2', flexShrink: 0, marginTop: 4,
+                  }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: '#2B2A2E', marginBottom: 2 }}>
+                      世界池
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--text-light)', lineHeight: 1.6 }}>
+                      跨属混刷，所有出货计入世界池，80次必出异色
+                    </div>
+                    <div style={{ fontSize: 10, color: '#7E57C2', fontWeight: 700, marginTop: 2 }}>
+                      ↳ 出货后家族池&属性池计数不重置，可继续累积
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
         // 判断是否有家族池（与仪表盘保持一致，重新计算）
         const spiritAName = plan.spiritA || '';
         const spiritBName = plan.spiritB || '';

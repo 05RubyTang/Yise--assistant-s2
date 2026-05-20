@@ -16,7 +16,7 @@
 
 // ── 构建版本号（由 vite.config.js 在每次 build 时自动注入，勿手动修改）─────────
 // 浏览器通过逐字节对比 sw.js 文件来判断 SW 是否更新，版本号变化即触发更新流程
-const BUILD_VERSION = '2026-05-20T19:45:12.684Z';
+const BUILD_VERSION = '2026-05-20T19:48:55.366Z';
 
 // 图片缓存：固定名称，不随 SW 版本变化，避免每次更新清空缓存
 const IMG_CACHE = 'luoke-images';

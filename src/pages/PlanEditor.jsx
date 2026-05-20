@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useStore } from '../store';
 import { PLANS, getShinisByAttr, FRUIT_ATTR, getPlanFruitsArray, getFruitBySpirit, getAllSpiritFruitPairs, getAttrByAnyName } from '../data/plans';
+import { S2_PLANS } from '../data/seasons/s2Plans';
 import { getAllEntries, ATTR_CONFIG } from '../data/fruitGuide';
 import { FRUITS_WIKI_IMG } from '../data/fruits-wiki';
 import PlanIcon from '../components/PlanIcon';
@@ -14,30 +15,77 @@ const ATTR_ID_TO_LABEL = {
   grass: '草系', evil: '恶系', ghost: '幽系', mech: '机械系', light: '光系',
 };
 
-// ── 所有可抓异色精灵（跨全属系，去重，按属系分组）────────────────────────────
-// 遍历内置属系方案，提取 shinies，首次出现优先归入该属系组
-const SHINY_ATTR_ORDER = ['fire','ice','electric','phantom','grass','evil','ghost','mech','light'];
-const ALL_SHINIES_GROUPED = (() => {
-  const seen = new Set();
-  const groups = SHINY_ATTR_ORDER.map(id => {
-    const plan = PLANS.find(p => p.id === id);
-    const items = (plan?.shinies || []).filter(n => {
-      if (seen.has(n)) return false;
-      seen.add(n);
-      return true;
-    });
-    return { id, label: ATTR_ID_TO_LABEL[id] || id, items };
-  }).filter(g => g.items.length > 0);
-  // 收录未被归入属系的残余精灵（世界池专有等）
-  const extra = [];
-  PLANS.forEach(p => {
-    (p.shinies || []).forEach(n => {
-      if (!seen.has(n)) { seen.add(n); extra.push(n); }
+// ── 属系属性顺序 ───────────────────────────────────────────────────────────
+const SHINY_ATTR_ORDER = ['fire','ice','electric','phantom','grass','evil','ghost','mech','light','water','cute','poison','normal','wing'];
+// 额外属系标签（补充 ATTR_ID_TO_LABEL 未覆盖的）
+const EXTRA_ATTR_LABEL = {
+  water: '水系', cute: '萌系', poison: '毒系', normal: '普通系', wing: '翼系',
+};
+const getAttrLabel = (id) => ATTR_ID_TO_LABEL[id] || EXTRA_ATTR_LABEL[id] || id;
+
+// 从方案数组中按属系归组，返回 [{ id, iconImg, label, items }]
+function buildShinyGroups(planList) {
+  // 收集精灵 → 属系的映射（根据 iconImg 提取属系 id）
+  const spiritAttrMap = {};
+  planList.forEach(p => {
+    const attrId = p.iconImg ? p.iconImg.replace(/.*\/attrs\//, '').replace(/\.(png|webp)$/, '') : null;
+    (p.shinies || []).forEach(name => {
+      if (!spiritAttrMap[name]) spiritAttrMap[name] = attrId;
     });
   });
-  if (extra.length > 0) groups.push({ id: 'world', label: '其他', items: extra });
+
+  const seen = new Set();
+  const groupMap = {};
+
+  // 按属系顺序归组
+  SHINY_ATTR_ORDER.forEach(id => { groupMap[id] = []; });
+
+  planList.forEach(p => {
+    const attrId = p.iconImg ? p.iconImg.replace(/.*\/attrs\//, '').replace(/\.(png|webp)$/, '') : null;
+    (p.shinies || []).forEach(name => {
+      if (seen.has(name)) return;
+      seen.add(name);
+      const key = spiritAttrMap[name] || attrId || 'other';
+      if (!groupMap[key]) groupMap[key] = [];
+      groupMap[key].push(name);
+    });
+  });
+
+  // 转为数组，过滤空组，带 iconImg
+  const groups = SHINY_ATTR_ORDER
+    .filter(id => groupMap[id]?.length > 0)
+    .map(id => {
+      const refPlan = planList.find(p =>
+        p.iconImg && p.iconImg.includes(`/${id}.`)
+      );
+      return {
+        id,
+        iconImg: refPlan?.iconImg || null,
+        label: getAttrLabel(id),
+        items: groupMap[id],
+      };
+    });
+
+  // 残余（属系未识别）
+  const extra = groupMap['other'] || [];
+  if (extra.length > 0) groups.push({ id: 'other', iconImg: null, label: '其他', items: extra });
   return groups;
+}
+
+// ── 按赛季分层的异色精灵分组 ────────────────────────────────────────────────
+// 结构：[{ season: 'S1', label: 'S1 经典', groups: [...] }, { season: 'S2', ... }]
+const ALL_SHINIES_BY_SEASON = (() => {
+  // S1：只用 PLANS（内置 9 属系方案）
+  const s1Groups = buildShinyGroups(PLANS.filter(p => p.shinies?.length > 0));
+  // S2：用 S2_PLANS 里有 shinies 的方案
+  const s2Groups = buildShinyGroups(S2_PLANS.filter(p => p.shinies?.length > 0));
+  return [
+    { season: 'S1', label: 'S1 经典', groups: s1Groups },
+    { season: 'S2', label: 'S2 狂欢', groups: s2Groups },
+  ];
 })();
+// 扁平化（全选/清空时用）
+const ALL_SHINIES_FLAT = ALL_SHINIES_BY_SEASON.flatMap(s => s.groups.flatMap(g => g.items));
 
 // ── 果实名自动补全数据源 ────────────────────────────────────────────────────
 const ALL_FRUIT_NAMES = Object.keys(FRUITS_WIKI_IMG).sort((a, b) => a.localeCompare(b, 'zh'));
@@ -172,6 +220,223 @@ function FruitInput({ value, onChange, placeholder, required }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── 异色精灵选择弹窗（S1/S2 赛季分Tab） ────────────────────────────────────────
+function ShinyPickerModal({ pendingShinies, setPendingShinies, togglePending, spirits, onCancel, onConfirm }) {
+  const [activeSeason, setActiveSeason] = useState('S1');
+  const seasonData = ALL_SHINIES_BY_SEASON.find(s => s.season === activeSeason) || ALL_SHINIES_BY_SEASON[0];
+  const currentGroups = seasonData.groups;
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        background: 'rgba(30,25,20,0.6)',
+        display: 'flex', alignItems: 'flex-end',
+      }}
+      onClick={e => { if (e.target === e.currentTarget) onCancel(); }}
+    >
+      <div style={{
+        width: '100%', maxHeight: '82vh',
+        background: 'var(--bg)', borderRadius: '18px 18px 0 0',
+        display: 'flex', flexDirection: 'column',
+        boxShadow: '0 -4px 24px rgba(0,0,0,0.18)',
+      }}>
+        {/* 弹窗头部 */}
+        <div style={{
+          padding: '16px 18px 0',
+          flexShrink: 0,
+        }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            marginBottom: 12,
+          }}>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 900, fontFamily: 'var(--font-display)' }}>
+                选择目标异色精灵
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                已选 <strong style={{ color: pendingShinies.length > 0 ? '#C8830A' : 'var(--text-muted)' }}>
+                  {pendingShinies.length}
+                </strong> 只
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => {
+                  const seasonItems = currentGroups.flatMap(g => g.items);
+                  setPendingShinies(prev => {
+                    const existing = prev.filter(n => !seasonItems.includes(n));
+                    return [...existing, ...seasonItems];
+                  });
+                }}
+                style={{
+                  fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 8,
+                  border: '1px solid var(--divider)', background: 'var(--card-inner)',
+                  color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'var(--font-body)',
+                }}
+              >全选</button>
+              <button
+                onClick={() => {
+                  const seasonItems = new Set(currentGroups.flatMap(g => g.items));
+                  setPendingShinies(prev => prev.filter(n => !seasonItems.has(n)));
+                }}
+                style={{
+                  fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 8,
+                  border: '1px solid var(--divider)', background: 'var(--card-inner)',
+                  color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'var(--font-body)',
+                }}
+              >清空</button>
+            </div>
+          </div>
+
+          {/* S1 / S2 Tab */}
+          <div style={{
+            display: 'flex', gap: 0,
+            background: 'var(--card-inner)', borderRadius: 10,
+            padding: 3, marginBottom: 0,
+            border: '1.5px solid var(--divider)',
+          }}>
+            {ALL_SHINIES_BY_SEASON.map(s => {
+              const isActive = activeSeason === s.season;
+              const count = s.groups.flatMap(g => g.items).filter(n => pendingShinies.includes(n)).length;
+              return (
+                <button
+                  key={s.season}
+                  onClick={() => setActiveSeason(s.season)}
+                  style={{
+                    flex: 1, padding: '7px 0', borderRadius: 8,
+                    border: 'none', cursor: 'pointer',
+                    fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 800,
+                    background: isActive ? '#2B2A2E' : 'transparent',
+                    color: isActive ? '#FBC839' : 'var(--text-muted)',
+                    transition: 'all 0.15s',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                  }}
+                >
+                  {s.label}
+                  {count > 0 && (
+                    <span style={{
+                      fontSize: 10, fontWeight: 900,
+                      background: isActive ? '#FBC839' : 'rgba(200,131,10,0.2)',
+                      color: isActive ? '#2B2A2E' : '#C8830A',
+                      borderRadius: 10, padding: '0 5px', lineHeight: '16px',
+                      minWidth: 18, textAlign: 'center',
+                    }}>{count}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 分割线 */}
+        <div style={{ height: 1, background: 'var(--divider)', margin: '10px 0 0', flexShrink: 0 }} />
+
+        {/* 精灵列表（分属系分组，可滚动） */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 18px 8px' }}>
+          {currentGroups.map(group => (
+            <div key={group.id} style={{ marginBottom: 18 }}>
+              {/* 属系标题 */}
+              <div style={{
+                fontSize: 11, fontWeight: 800, color: 'var(--text-muted)',
+                letterSpacing: 0.5, marginBottom: 10,
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}>
+                {group.iconImg
+                  ? <img src={group.iconImg} alt={group.label} width={14} height={14} style={{ objectFit: 'contain' }} />
+                  : <span>🌍</span>
+                }
+                {group.label}
+                <span style={{
+                  fontSize: 10, color: 'var(--text-muted)', fontWeight: 600,
+                  background: 'rgba(103,93,83,0.1)', borderRadius: 8,
+                  padding: '0 5px', lineHeight: '16px',
+                }}>
+                  {group.items.filter(n => pendingShinies.includes(n)).length}/{group.items.length}
+                </span>
+              </div>
+
+              {/* 精灵网格 */}
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {group.items.map(name => {
+                  const isSelected = pendingShinies.includes(name);
+                  return (
+                    <div
+                      key={name}
+                      onClick={() => togglePending(name)}
+                      style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                        cursor: 'pointer',
+                        opacity: isSelected ? 1 : 0.38,
+                        transition: 'opacity 0.12s',
+                      }}
+                    >
+                      <div style={{
+                        borderRadius: 12, padding: 2,
+                        border: isSelected ? '2px solid #C8830A' : '2px solid transparent',
+                        background: isSelected ? 'rgba(200,131,10,0.08)' : 'transparent',
+                        position: 'relative', transition: 'all 0.12s',
+                      }}>
+                        <SpiritAvatar
+                          name={name}
+                          obtained={spirits[name]?.obtained}
+                          size={46}
+                        />
+                        {isSelected && (
+                          <span style={{
+                            position: 'absolute', bottom: -2, right: -2,
+                            width: 15, height: 15, borderRadius: '50%',
+                            background: '#C8830A', color: '#fff',
+                            fontSize: 9, fontWeight: 900,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            lineHeight: 1,
+                          }}>✓</span>
+                        )}
+                      </div>
+                      <span style={{
+                        fontSize: 10,
+                        fontWeight: isSelected ? 700 : 600,
+                        color: isSelected ? '#C8830A' : 'var(--text-muted)',
+                        maxWidth: 50, textAlign: 'center', lineHeight: 1.3,
+                      }}>{name}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* 底部确认按钮 */}
+        <div style={{
+          padding: '12px 18px 20px', flexShrink: 0,
+          borderTop: '1px solid var(--divider)',
+          display: 'flex', gap: 10,
+        }}>
+          <button
+            onClick={onCancel}
+            style={{
+              flex: 1, padding: '12px 0', borderRadius: 12,
+              border: '1.5px solid var(--divider)', background: 'var(--card-inner)',
+              color: 'var(--text-muted)', fontSize: 14, fontWeight: 700,
+              cursor: 'pointer', fontFamily: 'var(--font-body)',
+            }}
+          >取消</button>
+          <button
+            onClick={onConfirm}
+            style={{
+              flex: 2, padding: '12px 0', borderRadius: 12,
+              border: 'none', background: '#2B2A2E',
+              color: '#FBF7EC', fontSize: 14, fontWeight: 800,
+              cursor: 'pointer', fontFamily: 'var(--font-body)',
+            }}
+          >确定（{pendingShinies.length} 只）</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1032,155 +1297,16 @@ export default function PlanEditor({ basePlanId, userPlanId, goBack }) {
       }}
     />
 
-    {/* ── 异色精灵选择弹窗 ── */}
+    {/* ── 异色精灵选择弹窗（S1/S2 赛季分Tab） ── */}
     {showShinyModal && createPortal(
-      <div
-        style={{
-          position: 'fixed', inset: 0, zIndex: 1000,
-          background: 'rgba(30,25,20,0.6)',
-          display: 'flex', alignItems: 'flex-end',
-        }}
-        onClick={e => { if (e.target === e.currentTarget) setShowShinyModal(false); }}
-      >
-        <div style={{
-          width: '100%', maxHeight: '80vh',
-          background: 'var(--bg)', borderRadius: '18px 18px 0 0',
-          display: 'flex', flexDirection: 'column',
-          boxShadow: '0 -4px 24px rgba(0,0,0,0.18)',
-        }}>
-          {/* 弹窗头部 */}
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '16px 18px 12px',
-            borderBottom: '1px solid var(--divider)', flexShrink: 0,
-          }}>
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 900, fontFamily: 'var(--font-display)' }}>
-                选择目标异色精灵
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                已选 <strong style={{ color: pendingShinies.length > 0 ? '#C8830A' : 'var(--text-muted)' }}>
-                  {pendingShinies.length}
-                </strong> 只
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                onClick={() => setPendingShinies(ALL_SHINIES_GROUPED.flatMap(g => g.items))}
-                style={{
-                  fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 8,
-                  border: '1px solid var(--divider)', background: 'var(--card-inner)',
-                  color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'var(--font-body)',
-                }}
-              >全选</button>
-              <button
-                onClick={() => setPendingShinies([])}
-                style={{
-                  fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 8,
-                  border: '1px solid var(--divider)', background: 'var(--card-inner)',
-                  color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'var(--font-body)',
-                }}
-              >清空</button>
-            </div>
-          </div>
-
-          {/* 精灵列表（分属系分组，可滚动） */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '12px 18px 8px' }}>
-            {ALL_SHINIES_GROUPED.map(group => (
-              <div key={group.id} style={{ marginBottom: 18 }}>
-                {/* 属系标题 */}
-                <div style={{
-                  fontSize: 11, fontWeight: 800, color: 'var(--text-muted)',
-                  letterSpacing: 0.5, marginBottom: 10,
-                  display: 'flex', alignItems: 'center', gap: 6,
-                }}>
-                  {(() => {
-                    const plan = PLANS.find(p => p.id === group.id);
-                    return plan
-                      ? <PlanIcon plan={plan} size={14} />
-                      : <span>🌍</span>;
-                  })()}
-                  {group.label}
-                </div>
-
-                {/* 精灵网格 */}
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  {group.items.map(name => {
-                    const isSelected = pendingShinies.includes(name);
-                    return (
-                      <div
-                        key={name}
-                        onClick={() => togglePending(name)}
-                        style={{
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                          cursor: 'pointer',
-                          opacity: isSelected ? 1 : 0.4,
-                          transition: 'opacity 0.12s',
-                        }}
-                      >
-                        <div style={{
-                          borderRadius: 12, padding: 2,
-                          border: isSelected ? '2px solid #C8830A' : '2px solid transparent',
-                          background: isSelected ? 'rgba(200,131,10,0.08)' : 'transparent',
-                          position: 'relative', transition: 'all 0.12s',
-                        }}>
-                          <SpiritAvatar
-                            name={name}
-                            obtained={state.spirits[name]?.obtained}
-                            size={46}
-                          />
-                          {isSelected && (
-                            <span style={{
-                              position: 'absolute', bottom: -2, right: -2,
-                              width: 15, height: 15, borderRadius: '50%',
-                              background: '#C8830A', color: '#fff',
-                              fontSize: 9, fontWeight: 900,
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              lineHeight: 1,
-                            }}>✓</span>
-                          )}
-                        </div>
-                        <span style={{
-                          fontSize: 10,
-                          fontWeight: isSelected ? 700 : 600,
-                          color: isSelected ? '#C8830A' : 'var(--text-muted)',
-                          maxWidth: 50, textAlign: 'center', lineHeight: 1.3,
-                        }}>{name}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* 底部确认按钮 */}
-          <div style={{
-            padding: '12px 18px 20px', flexShrink: 0,
-            borderTop: '1px solid var(--divider)',
-            display: 'flex', gap: 10,
-          }}>
-            <button
-              onClick={() => setShowShinyModal(false)}
-              style={{
-                flex: 1, padding: '12px 0', borderRadius: 12,
-                border: '1.5px solid var(--divider)', background: 'var(--card-inner)',
-                color: 'var(--text-muted)', fontSize: 14, fontWeight: 700,
-                cursor: 'pointer', fontFamily: 'var(--font-body)',
-              }}
-            >取消</button>
-            <button
-              onClick={confirmShinyModal}
-              style={{
-                flex: 2, padding: '12px 0', borderRadius: 12,
-                border: 'none', background: '#2B2A2E',
-                color: '#FBF7EC', fontSize: 14, fontWeight: 800,
-                cursor: 'pointer', fontFamily: 'var(--font-body)',
-              }}
-            >确定（{pendingShinies.length} 只）</button>
-          </div>
-        </div>
-      </div>,
+      <ShinyPickerModal
+        pendingShinies={pendingShinies}
+        setPendingShinies={setPendingShinies}
+        togglePending={togglePending}
+        spirits={state.spirits}
+        onCancel={() => setShowShinyModal(false)}
+        onConfirm={confirmShinyModal}
+      />,
       document.getElementById('modal-root') || document.body
     )}
     </>

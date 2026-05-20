@@ -18,8 +18,8 @@ export default function SeasonSwitcher({ style }) {
 
   return (
     <div style={{
-      display: 'flex',
-      gap: 8,
+      display: 'inline-flex',
+      gap: 6,
       ...style,
     }}>
       {SEASON_LIST.map(season => {
@@ -31,8 +31,9 @@ export default function SeasonSwitcher({ style }) {
             key={season.id}
             onClick={() => handleSwitch(season.id)}
             style={{
-              flex: 1,
-              padding: '10px 16px',
+              flex: '0 0 auto',
+              whiteSpace: 'nowrap',
+              padding: '7px 12px',
               border: 'none',
               borderRadius: 8,
               background: isActive
@@ -41,8 +42,8 @@ export default function SeasonSwitcher({ style }) {
                   : 'linear-gradient(135deg, #E8733A 0%, #D85D28 100%)' // S2 当前赛季：橙色
                 : 'transparent',
               color: isActive ? '#fff' : 'var(--text)',
-              fontSize: 13,
-              fontWeight: isActive ? 600 : 500,
+              fontSize: 12,
+              fontWeight: isActive ? 700 : 500,
               cursor: 'pointer',
               transition: 'all 0.2s ease',
               opacity: isActive ? 1 : 0.6,
@@ -50,7 +51,7 @@ export default function SeasonSwitcher({ style }) {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: 6,
+              gap: 5,
             }}
             onMouseEnter={e => {
               if (!isActive) {

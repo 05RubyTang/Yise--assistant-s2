@@ -27,9 +27,29 @@ function AttrBadge({ attr }) {
   );
 }
 
+// ─── 待公布果实占位框（尺寸对齐 FruitTag size=38）─────────────────────────────
+function FruitPendingPlaceholder({ size = 38 }) {
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      width: size, height: size, flexShrink: 0,
+      borderRadius: size * 0.22,
+      background: 'linear-gradient(135deg, rgba(103,93,83,0.10) 0%, rgba(103,93,83,0.06) 100%)',
+      border: '1.5px dashed rgba(103,93,83,0.35)',
+    }}>
+      <span style={{ fontSize: size * 0.38, opacity: 0.4 }}>?</span>
+    </span>
+  );
+}
+
 // ─── 单个果实条目 ─────────────────────────────────────────────────────────────
 function FruitEntry({ entry, isOwned, onToggle, groupColor, onEdit, onDelete }) {
   const isCustom = !!entry.custom;
+  // 果实图标：有 fruitPending 标记时显示「待公布」占位框，否则正常显示图标
+  const fruitIcon = entry.fruitPending
+    ? <FruitPendingPlaceholder size={38} />
+    : <FruitTag name={entry.fruit} size={38} showName={false} style={{ flexShrink: 0 }} />;
+
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 10,
@@ -42,7 +62,7 @@ function FruitEntry({ entry, isOwned, onToggle, groupColor, onEdit, onDelete }) 
           : '1px solid transparent',
       transition: 'background 0.2s, border 0.2s',
     }}>
-      <FruitTag name={entry.fruit} size={38} showName={false} style={{ flexShrink: 0 }} />
+      {fruitIcon}
 
       <div style={{ flex: 1, minWidth: 0 }}>
         {/* 行1：果实名 + 属性 + 自建角标 */}

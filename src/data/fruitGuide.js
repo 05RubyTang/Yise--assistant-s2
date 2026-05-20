@@ -428,6 +428,7 @@ export const FRUIT_GUIDE_TABS = [
             attrs: ['普通系', '机械系'],
             unlock: '捕捉 1 只奇异血脉的音碟吼',
             tip: '果实待官方更新后开放，方案暂不可用',
+            fruitPending: true,  // 果实图暂未上线，显示「待公布」占位框
           },
         ],
       },

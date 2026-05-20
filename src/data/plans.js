@@ -764,6 +764,8 @@ export function computeFamilyPool(task, plan) {
  */
 export function getPlanMainPool(plan) {
   if (!plan) return 'world';
+  // 用户主动勾选「混池」时强制走世界池
+  if (plan.forceWorld) return 'world';
   // 优先用果实数据判断（官方方案都有 fruitA）
   const fruits = [plan.fruitA, plan.fruitB, plan.fruitC].filter(Boolean);
   if (fruits.length > 0) {

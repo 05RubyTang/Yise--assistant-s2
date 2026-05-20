@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { useStore } from '../store';
 import { PLANS, getPlanAttrId, classifyPool, computeFamilyPool, getPlanMainPool, resolvePlanIconImg } from '../data/plans';
 import ProgressBar from '../components/ProgressBar';
 import PlanIcon from '../components/PlanIcon';
 import SpiritAvatar from '../components/SpiritAvatar';
+import SeasonSwitcher from '../components/SeasonSwitcher';
 
 /** 从 completedTasks 中提取最近获得的异色精灵（去重，最多2只，仅当前赛季） */
 function getRecentShinies(state) {
@@ -96,14 +98,17 @@ function RecentSpiritCard({ task }) {
 export default function Home({ navigate }) {
   const { state, poolCounts } = useStore();
   const currentSeason = state.currentSeason;
-  // 只展示当前赛季的进行中任务
+  // 只展示当前赛季的进行中任务（主区域）
   const tasks = (state.activeTasks || []).filter(t => !currentSeason || !t.season || t.season === currentSeason);
+  // 其他赛季还有进行中任务（用于折叠提示）
+  const otherSeasonTasks = (state.activeTasks || []).filter(t => t.season && t.season !== currentSeason);
+  const [otherExpanded, setOtherExpanded] = useState(false);
   const recentShinies = getRecentShinies(state);
   const hasRecentShinies = recentShinies.length > 0;
 
   return (
     <div style={{ paddingBottom: 16 }}>
-      {/* 顶部 hero 区域：标题 + 小洛克装饰 */}
+      {/* 顶部 hero 区域：标题 + 赛季切换 + 小洛克装饰 */}
       <div style={{ position: 'relative', padding: '36px 16px 0', minHeight: 90 }}>
         {/* logo 靠左，右边留出 110px 给小洛克 */}
         <img
@@ -113,10 +118,14 @@ export default function Home({ navigate }) {
         />
         {/* 副标题 */}
         <div style={{
-          padding: '6px 0 14px',
+          padding: '6px 0 10px',
           fontSize: 12, color: 'var(--text-light)', letterSpacing: 2, fontWeight: 600,
         }}>
           用耐心换来独一无二的伙伴
+        </div>
+        {/* 赛季切换器：嵌在 hero 区底部，右侧避开小洛克 */}
+        <div style={{ maxWidth: 'calc(100% - 110px)', paddingBottom: 14 }}>
+          <SeasonSwitcher />
         </div>
         {/* 小洛克：绝对定位右上角，完整显示在屏幕内 */}
         <img
@@ -412,6 +421,106 @@ export default function Home({ navigate }) {
           </div>
         );
       })}
+
+      {/* ── 其他赛季进行中（折叠区） ── */}
+      {otherSeasonTasks.length > 0 && (
+        <div style={{ margin: '0 16px 16px' }}>
+          {/* 折叠触发行 */}
+          <button
+            onClick={() => setOtherExpanded(v => !v)}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+              background: 'none', border: 'none', padding: '8px 0', cursor: 'pointer',
+              textAlign: 'left',
+            }}
+          >
+            <span style={{
+              flex: 1, fontSize: 12, fontWeight: 700, color: 'var(--text-muted)',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}>
+              <span style={{
+                fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 10,
+                background: 'rgba(139,115,85,0.15)',
+                color: '#8B7355',
+                border: '1px solid rgba(139,115,85,0.35)',
+              }}>
+                {otherSeasonTasks[0]?.season || 'S1'} 历史赛季
+              </span>
+              还有 {otherSeasonTasks.length} 个进行中的刷取
+            </span>
+            <span style={{
+              fontSize: 12, color: 'var(--text-muted)',
+              transform: otherExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+              transition: 'transform 0.2s',
+              display: 'inline-block', lineHeight: 1,
+            }}>▾</span>
+          </button>
+
+          {/* 折叠内容 */}
+          {otherExpanded && otherSeasonTasks.map((task, idx) => {
+            const rawPlan = PLANS.find(p => p.id === task.planId)
+              || (state.userPlanConfig || []).find(p => p.id === task.planId);
+            if (!rawPlan) return null;
+            const attrBase = rawPlan.attrId ? PLANS.find(p => p.id === rawPlan.attrId) : null;
+            const plan = {
+              ...rawPlan,
+              type:    rawPlan.type    || rawPlan.label || '自定义方案',
+              iconImg: resolvePlanIconImg(rawPlan, attrBase),
+              icon:    rawPlan.icon    || attrBase?.icon    || '✨',
+              fruitA:  rawPlan.fruitA  || '',
+              fruitB:  rawPlan.fruitB  || '',
+            };
+            return (
+              <div key={task.planId} style={{
+                borderRadius: 12, overflow: 'hidden',
+                border: '1.5px solid rgba(139,115,85,0.3)',
+                marginBottom: idx < otherSeasonTasks.length - 1 ? 8 : 0,
+                opacity: 0.82,
+              }}>
+                {/* 头部 */}
+                <div style={{
+                  background: '#4A4640',
+                  padding: '10px 14px',
+                  display: 'flex', alignItems: 'center', gap: 10,
+                }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 9,
+                    background: 'rgba(255,255,255,0.1)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0, overflow: 'hidden', padding: 3,
+                  }}>
+                    <PlanIcon plan={plan} size={26} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2, flexWrap: 'wrap' }}>
+                      <span style={{
+                        fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 10,
+                        background: 'rgba(139,115,85,0.35)', color: '#D4BFA0',
+                        border: '1px solid rgba(139,115,85,0.5)',
+                      }}>🌙 {task.season}</span>
+                      <span style={{ fontWeight: 800, fontSize: 13, color: '#F0E8D5' }}>{plan.type}方案</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: 'rgba(240,232,213,0.5)' }}>
+                      {plan.fruitA}{plan.fruitB ? ` + ${plan.fruitB}` : ''}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => navigate('recorder', { planId: task.planId })}
+                    style={{
+                      flexShrink: 0, padding: '6px 12px', borderRadius: 8,
+                      background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)',
+                      color: '#F0E8D5', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                      fontFamily: 'var(--font-body)',
+                    }}
+                  >
+                    继续 →
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* 开始新刷取 */}
       <button
